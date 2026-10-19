@@ -1,20 +1,48 @@
-# thyme mandates
+# Thyme Payroll
 
-Budgets AI agents can't break.
+Pay international contractors in EURC, with an AI agent that checks every invoice and a chain that only lets it pay the right people.
 
-An AI agent gets a spending mandate from a Safe owner, written in plain language. The mandate is compiled into on-chain Zodiac Roles permissions and signed once. Anything outside it reverts on chain.
+Built at [The FinTechers Hackathon 2026](https://thefintechers.notion.site/hackers-guide_-The-FinTechers-Hackathon-2026-3f41e819981381cf9981d4d0e6f62eba), Track 2: Stablecoins and new financial infrastructure, challenge "The EUR stablecoin payroll rail". Network: Ethereum Sepolia, testnet only. Live demo: https://web-production-e14ca.up.railway.app
 
-Built at [The FinTechers Hackathon 2026](https://thefintechers.notion.site/hackers-guide_-The-FinTechers-Hackathon-2026-3f41e819981381cf9981d4d0e6f62eba), Track 2: Stablecoins and new financial infrastructure. Network: Ethereum Sepolia, testnet only.
+## What it does
+
+1. Invoices (PDF, any currency) land in a queue.
+2. A compliance agent on Amazon Bedrock takes them one by one: extracts the payee, wallet and amount, then runs a checklist: known beneficiary, wallet matches the one on file, EU/OFAC/CZ sanctions (names and wallet addresses), firm licences and regulator warnings (Mostly Right dataset), country risk, public footprint, invoice integrity (duplicates, anomalies, instruction-like text in the PDF), FX rate to EUR, EURC issuer and reserve backing, budget, wallet-ownership proof. Every check is labelled `chain` or `agent`.
+3. A new beneficiary needs one owner approval with a monthly limit. Everything else is automatic.
+4. When the checklist is green, the agent triggers Thyme Flow through a webhook. Thyme sends the EURC from the company's own Safe through a Zodiac Roles permission that allows only `EURC.transfer`. The app never holds a key.
+5. Every payout gets a remittance advice (EURC, EUR, ČNB rate and CZK, tx hash), a monthly ledger CSV and an audit log, plus a cost/speed comparison with SWIFT and SEPA.
+
+A forged invoice (same payee, different wallet) is stopped by the agent; if the agent were fooled, the chain rejects the transfer anyway.
 
 ## Built during the hackathon
 
-This repository was created at kickoff. The starting point is the `hackathon-start` tag, and everything after it was built during the event, 19–20 October 2026.
+This repository was created at kickoff. The starting point is the `hackathon-start` tag; everything after it was built during the event, 19–20 October 2026:
 
-- _(filled in as we build)_
+- The whole app: TanStack Start UI (dashboard, invoice queue with live investigation log, beneficiaries with trust scores and totals, agents, payouts, reports, settings, onboarding), server functions and API routes, SQLite store.
+- The compliance agent: Bedrock Converse pipeline (Haiku 4.5 extraction with a forced tool, Sonnet 4.5 explanations), deterministic validation, sanctions list fetchers, country-risk tables, FX via Tatum/ECB, ČNB daily rate, EURC issuer/backing check, scoring and auto-pay rules.
+- Thyme onboarding over the API: the app asks Thyme to prepare a Roles profile for the user's existing Safe, prompts the owner to sign one transaction in MetaMask, confirms it, creates the executable and its webhook. The user never opens the Thyme console.
+- The Thyme Flow task `thyme/functions/pay-invoice` and the webhook callbacks.
+- Reports: remittance advice, ledger CSV/JSON, audit JSONL, the SWIFT/SEPA comparison with sourced assumptions (`config/rails.json`).
+- Synthetic demo data (`demo/`): five fictional contractors, invoices in EUR/USD/GBP/INR, one forged invoice and one with embedded prompt injection.
+- `src/lib/roles`: viem encoders for per-beneficiary Zodiac Roles allowances, verified on a Sepolia fork (`scripts/fork-test.ts`).
+- The pitch site (`pitch/`) and `PLAN.md`.
+
+In the Thyme product itself (closed source, disclosed to the organisers) we added during the hackathon the management API endpoints the onboarding uses: `POST /api/v1/profiles` with `kind: safe_roles` and `POST /api/v1/profiles/{id}/setup`.
 
 ## Pre-existing work and credits
 
-- **Thyme** (thymelabs.io) is our existing, closed-source on-chain automation product. We disclosed it to the organisers. None of its code is included here; this repo is a standalone build.
-- Open source we build on: [Safe](https://github.com/safe-global/safe-smart-account), [Zodiac Roles Modifier](https://github.com/gnosisguild/zodiac-modifier-roles), [viem](https://viem.sh), [wagmi](https://wagmi.sh).
-- Models: Anthropic Claude on Amazon Bedrock.
-- AI coding assistants (Claude Code, Codex) were used during the build.
+- **Thyme** (thymelabs.io) is our existing, closed-source on-chain automation product. We disclosed it to the organisers. None of its code is included here; this app talks to Thyme only through its public HTTP API and webhooks.
+- Open source we build on: [Safe](https://github.com/safe-global/safe-smart-account), [Zodiac Roles Modifier](https://github.com/gnosisguild/zodiac-modifier-roles), [viem](https://viem.sh), [wagmi](https://wagmi.sh), [ConnectKit](https://docs.family.co/connectkit), [TanStack](https://tanstack.com), [shadcn/ui](https://ui.shadcn.com), [pdf-lib](https://pdf-lib.js.org).
+- Data: EU consolidated sanctions list, OFAC SDN, ESMA interim MiCA registers, ČNB exchange rates, Chainlink feeds, the Mostly Right "EU financial firm licences and regulator warnings" dataset, Circle testnet EURC.
+- Models: Anthropic Claude (Haiku 4.5, Sonnet 4.5) on Amazon Bedrock, eu-central-1.
+- AI coding assistants (Claude Code, Codex) were used throughout the build.
+
+## Run it
+
+```bash
+bun install
+cp .env.example .env     # LLM_PROVIDER=mock and PAYMENT_EXECUTOR=simulated work without any keys
+bun run dev              # http://localhost:3000
+```
+
+See `.env.example` for the Thyme, Bedrock, Tatum and Apify variables. `thyme/README.md` covers the Flow task.
