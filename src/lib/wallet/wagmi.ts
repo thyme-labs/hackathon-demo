@@ -1,6 +1,6 @@
 import { createConfig, createStorage, cookieStorage, http } from 'wagmi'
 import { sepolia } from 'wagmi/chains'
-import { injected, walletConnect } from 'wagmi/connectors'
+import { injected, safe, walletConnect } from 'wagmi/connectors'
 
 export const CHAIN = sepolia
 export const ETHERSCAN = 'https://sepolia.etherscan.io'
@@ -23,6 +23,16 @@ export function getWagmiConfig(opts: WalletOptions = {}) {
   if (cached && cached.key === key) return cached.config
 
   const connectors = [injected({ shimDisconnect: true })]
+  if (inBrowser) {
+    // Safe{Wallet} as a connector: active when the app is opened as a Safe App (iframe on
+    // app.safe.global); outside the iframe Safe{Wallet} still pairs through WalletConnect.
+    connectors.push(
+      safe({
+        allowedDomains: [/^https:\/\/app\.safe\.global$/, /\.safe\.global$/],
+        shimDisconnect: true,
+      }) as unknown as ReturnType<typeof injected>,
+    )
+  }
   if (inBrowser && projectId) {
     connectors.push(
       walletConnect({
