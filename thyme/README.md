@@ -14,7 +14,7 @@ Thyme through that API and webhooks.
 
 | Deployment | Workspace | Project | Tag | Function id |
 |---|---|---|---|---|
-| `https://dev.api-http.thyme.sh` | `hackathon` (`nn749sjw8rxv7n25kdnqp4md0n8gjke1`) | `payroll` (`kx7de75y2pds2hnbqj5k0cfr3h8gksp4`) | `v1` | _not uploaded yet: the upload is refused with `No active Functions subscription` until the workspace has a Flow plan_ |
+| `https://dev.api-http.thyme.sh` | `hackathon` (`nn749sjw8rxv7n25kdnqp4md0n8gjke1`) | `payroll` (`kx7de75y2pds2hnbqj5k0cfr3h8gksp4`) | `v1` | `js7eqbvc4hwrd7fgqmmmgfp66s8gjq5s` (uploaded 2026-10-19) |
 
 Upload (CLI 0.11.0, Deno 2.9.4; bump the tag whenever the task or its manifest changes):
 
