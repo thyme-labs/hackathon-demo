@@ -162,7 +162,7 @@ export function buildRemittanceAdvice(
   const placeOfPerformance = options.placeOfPerformance ?? country;
 
   const docHash = createHash('sha256')
-    .update(JSON.stringify({ id, payout: payout.id, tx: payout.tx_hash, amount: eurcRaw, invoice: invoiceNo, payee: beneficiary.wallet, cnb: legs?.payout ?? null }))
+    .update(JSON.stringify({ id, payout: payout.id, tx: payout.tx_hash, amount: eurcRaw, invoice: invoiceNo, payee: payout.to_wallet ?? beneficiary.wallet, cnb: legs?.payout ?? null }))
     .digest('hex');
 
   const invoiceFx = invoiceCurrency === 'EUR'
@@ -321,7 +321,7 @@ export function buildRemittanceAdvice(
       ${row('Type · country', `${beneficiary.type} · ${country}`)}
       ${beneficiary.tax_id ? row('Tax id', beneficiary.tax_id) : ''}
       ${beneficiary.lei ? row('LEI', beneficiary.lei, { mono: true }) : ''}
-      ${row('Wallet', beneficiary.wallet ?? '', { mono: true })}
+      ${row('Wallet', payout.to_wallet ?? beneficiary.wallet ?? '', { mono: true })}
       ${row('Registry status', `${beneficiary.status}${beneficiary.trust_score !== null && beneficiary.trust_score !== undefined ? ` · trust ${beneficiary.trust_score}/100` : ''}`)}
       ${row('Ownership proof', beneficiary.ownership_proof_json ? 'EIP-712 signature on file' : 'none')}
     </table>

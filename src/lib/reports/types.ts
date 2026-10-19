@@ -65,6 +65,8 @@ export interface PayoutRow {
   id: string;
   invoice_id: string;
   beneficiary_id: string | null;
+  /** Wallet actually paid (an approved beneficiary wallet); falls back to the primary wallet when absent. */
+  to_wallet?: string | null;
   /** Store convention: EURC base units (6 dp) as a decimal string; a human-unit number or "1250.00" string is also accepted (see eurcHumanAmount). */
   amount_eurc: string | number;
   amount_eur: number;
