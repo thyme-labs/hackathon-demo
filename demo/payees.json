@@ -181,7 +181,7 @@
       "number": "INV-0388",
       "payee_id": "studio-nord-ltd",
       "currency": "GBP",
-      "gross": 780,
+      "gross": 2.2,
       "scenario": "normal"
     },
     {
@@ -189,7 +189,7 @@
       "number": "INV-0401",
       "payee_id": "marko-petrovic",
       "currency": "EUR",
-      "gross": 300,
+      "gross": 2.5,
       "scenario": "normal"
     },
     {
@@ -197,7 +197,7 @@
       "number": "INV-0412",
       "payee_id": "anna-kovalenko",
       "currency": "EUR",
-      "gross": 600,
+      "gross": 2.5,
       "scenario": "normal"
     },
     {
@@ -205,7 +205,7 @@
       "number": "INV-0418",
       "payee_id": "nino-beridze",
       "currency": "USD",
-      "gross": 1100,
+      "gross": 3,
       "scenario": "normal"
     },
     {
@@ -213,7 +213,7 @@
       "number": "INV-0423",
       "payee_id": "priya-sharma",
       "currency": "INR",
-      "gross": 62000,
+      "gross": 250,
       "scenario": "normal"
     },
     {
@@ -221,7 +221,7 @@
       "number": "INV-0431",
       "payee_id": "anna-kovalenko",
       "currency": "EUR",
-      "gross": 440,
+      "gross": 3,
       "scenario": "normal"
     },
     {
@@ -229,7 +229,7 @@
       "number": "INV-0432",
       "payee_id": "anna-kovalenko",
       "currency": "EUR",
-      "gross": 600,
+      "gross": 2.5,
       "scenario": "fraud_swapped_wallet"
     },
     {
@@ -237,7 +237,7 @@
       "number": "INV-0440",
       "payee_id": "marko-petrovic",
       "currency": "EUR",
-      "gross": 300,
+      "gross": 2.5,
       "scenario": "prompt_injection"
     }
   ]
