@@ -50,24 +50,35 @@ const domainOf = (website: string | null | undefined): string | null => {
 
 export const run = async (ctx: CheckContext) => {
   const b = ctx.beneficiary
-  const type = b?.type ?? (ctx.extracted.payee.lei ? 'company' : 'person')
+  const { type } = ctx.payeeType
   const source = `Mostly Right EU financial firm licences and regulator warnings (${DATASET_URL})`
+  const name = b?.name ?? ctx.extracted.payee.name
   if (type !== 'company') {
     return makeResult(spec, ctx, {
       status: 'skip',
-      evidence: 'Natural person: the firm dataset carries licences, warnings and EU entity sanctions only.',
+      evidence: `Natural person (${ctx.payeeType.source}): the firm dataset carries licences, warnings and EU entity sanctions only.`,
       source,
+      data: { payee_type: type, payee_type_source: ctx.payeeType.source },
     })
   }
+  // A company that was not looked up is an open item for the owner, not a pass: warn, never skip.
   const key = agentEnv.mostlyRightApiKey()
-  if (!key || agentEnv.offline()) {
+  if (!key) {
     return makeResult(spec, ctx, {
-      status: 'skip',
-      evidence: 'MOSTLYRIGHT_API_KEY not set (or offline); firm licence and warning lookup skipped.',
+      status: 'warn',
+      evidence: `Dataset not configured: MOSTLYRIGHT_API_KEY is not set, so licences and regulator warnings for "${name}" were not checked. Set the key to run the lookup.`,
       source,
+      data: { payee_type: type, payee_type_source: ctx.payeeType.source, configured: false },
     })
   }
-  const name = b?.name ?? ctx.extracted.payee.name
+  if (agentEnv.offline()) {
+    return makeResult(spec, ctx, {
+      status: 'warn',
+      evidence: `Offline (AGENT_OFFLINE=1): licences and regulator warnings for "${name}" were not checked.`,
+      source,
+      data: { payee_type: type, payee_type_source: ctx.payeeType.source, configured: true, offline: true },
+    })
+  }
   const lei = b?.lei ?? ctx.extracted.payee.lei ?? null
   const domain = domainOf(b?.website ?? ctx.extracted.payee.website)
   const filterSets: Filter[][] = []

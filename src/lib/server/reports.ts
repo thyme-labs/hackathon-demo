@@ -1,4 +1,5 @@
 // Server-only glue between the store and src/lib/reports.
+import originator from '../../../config/originator.json'
 import { appendJsonl, auditLogPath, buildComparisonCard, buildRemittanceAdvice, currentMonth, ledgerCsv, payoutMonth, readAll, staticSources, toJsonl, verifyChain } from '../reports'
 import type { ChecklistItem, NetworkFee } from '../reports/types'
 import { finishedEntries, parseChecklist } from '../agent/checklist'
@@ -45,7 +46,7 @@ export function buildRemittance(payoutId: string): string {
   const provider = serverEnv.llmProvider()
   const modelId = snapshot.llm.models.find((m) => /sonnet|reason/i.test(m)) ?? snapshot.llm.models[0] ?? null
   return buildRemittanceAdvice(payout, invoice, beneficiary, checklist, {
-    payer: { legalName: 'Thyme Payroll demo company', safeAddress: all.safeAddress ?? undefined },
+    payer: { legalName: originator.legal_name, safeAddress: all.safeAddress ?? undefined },
     mandate: {
       executor: payout.executor,
       label: payout.simulated ? 'SIMULATED (no chain transaction)' : undefined,

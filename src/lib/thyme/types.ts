@@ -536,11 +536,17 @@ export const THYME_SETTINGS_KEYS = {
   webhookName: 'thymeWebhookName',
   rolesProxy: 'thymeRolesProxy',
   executorSafe: 'thymeExecutorSafe',
+  /** bytes32 role key of the Roles profile (profile.safeRoles.roleKey); lets the agent dry-run the Roles call. */
+  roleKey: 'thymeRoleKey',
   setupTxHash: 'thymeSetupTxHash',
   /** Real Thyme execution id of the last triggered run (the agents page). */
   lastExecutionId: 'thymeLastExecutionId',
   /** ISO timestamp when the owner chose the labelled simulated onboarding instead of a wallet. */
   simulatedAt: 'thymeSimulatedAt',
+  /** Last onboarding step the server saw (connect | safe | enable | setup | confirm | executable | done). */
+  step: 'thymeOnboardingStep',
+  /** JSON { step, message, code, requestId, status, at } of the last failed onboarding call; null once a retry succeeds. */
+  lastError: 'thymeLastError',
   safeAddress: 'safeAddress',
   ownerAddress: 'ownerAddress',
 } as const
@@ -558,9 +564,12 @@ export const THYME_OWNED_SETTINGS_KEYS: readonly string[] = [
   THYME_SETTINGS_KEYS.webhookName,
   THYME_SETTINGS_KEYS.rolesProxy,
   THYME_SETTINGS_KEYS.executorSafe,
+  THYME_SETTINGS_KEYS.roleKey,
   THYME_SETTINGS_KEYS.setupTxHash,
   THYME_SETTINGS_KEYS.lastExecutionId,
   THYME_SETTINGS_KEYS.simulatedAt,
+  THYME_SETTINGS_KEYS.step,
+  THYME_SETTINGS_KEYS.lastError,
 ]
 
 /** Minimal payout input for executePayout; build it from the payouts + invoices rows. */

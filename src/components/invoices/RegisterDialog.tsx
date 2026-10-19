@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import type { BeneficiaryProposal } from '@/lib/agent/types'
 import type { RegistrationPlan } from '@/lib/server/dto'
-import { type ApproveBeneficiaryInput, approveBeneficiary, registerBeneficiary } from '@/lib/server/invoices.fns'
+import { type ApprovalMode, type ApproveBeneficiaryInput, approveBeneficiary, registerBeneficiary } from '@/lib/server/invoices.fns'
 import { simulateThymeOnboarding } from '@/lib/server/thyme.fns'
 
 interface RegisterDialogProps {
@@ -59,18 +59,20 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
   })
 
   const finish = useMutation({
-    mutationFn: async (simulateFirst: boolean) => {
+    mutationFn: async ({ mode, simulateFirst }: { mode: ApprovalMode; simulateFirst: boolean }) => {
       if (!beneficiaryId) throw new Error('no beneficiary')
       if (simulateFirst) await simulateThymeOnboarding({ data: { safeAddress: plan?.safeAddress ?? null } })
-      return registerBeneficiary({ data: { invoiceId, beneficiaryId } })
+      return registerBeneficiary({ data: { invoiceId, beneficiaryId, mode } })
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ['invoice', invoiceId] })
       await queryClient.invalidateQueries({ queryKey: ['invoices'] })
       await queryClient.invalidateQueries({ queryKey: ['thyme-onboarding'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      await queryClient.invalidateQueries({ queryKey: ['beneficiaries'] })
       onOpenChange(false)
-      toast.success('Beneficiary registered · payout queued')
+      if (result.hold) toast.success('Beneficiary registered · approved, on hold', { description: 'Nothing is sent until you click Send on the invoice.' })
+      else toast.success('Beneficiary registered · payout queued')
     },
     onError: (error) => toast.error(error.message),
   })
@@ -79,11 +81,12 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
     event.preventDefault()
     prepare.mutate(form)
   }
-  function handleRegister() {
-    finish.mutate(false)
+  function handleApproveHold() {
+    finish.mutate({ mode: 'hold', simulateFirst: false })
   }
-  function handleRegisterSimulated() {
-    finish.mutate(true)
+  function handleApproveSend() {
+    // Without a Safe enabled, the rail is simulated first so the payout is labelled, not silently dropped.
+    finish.mutate({ mode: 'send', simulateFirst: !plan?.ready })
   }
   function handleBack() {
     setPhase('form')
@@ -117,7 +120,7 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
                 <Input value={form.country} onChange={set('country')} maxLength={2} className="uppercase" />
               </Field>
               <Field label="Type">
-                <Input value={form.type} readOnly className="text-dim" />
+                <Input value={form.type} readOnly />
               </Field>
               <Field label="Tax ID">
                 <Input value={form.taxId ?? ''} onChange={set('taxId')} />
@@ -186,7 +189,7 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
               <div className="rounded-lg border border-paused/30 bg-paused/10 p-3 text-xs">
                 <div className="text-paused">Payroll is not enabled on a Safe yet</div>
                 <div className="mt-1 text-dim">
-                  Enable it once with the owner wallet (one transaction), or continue with a labelled simulation for the demo.
+                  Enable it once with the owner wallet (one transaction), or continue with a labelled simulation for the demo. "Approve" alone sends nothing and needs no rail.
                 </div>
                 <div className="mt-3">
                   <Button asChild size="sm" variant="secondary">
@@ -195,22 +198,24 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
                 </div>
               </div>
             ) : null}
-            <ChipLegend className="justify-end" />
+            <div className="flex items-center justify-between gap-4 text-xs text-dim">
+              <span>
+                <span className="text-text">Approve</span> registers the payee and holds the payout for a later <span className="text-text">Send</span>. <span className="text-text">Approve &amp; send</span> queues it now.
+              </span>
+              <ChipLegend className="shrink-0" />
+            </div>
             <DialogFooter>
-              <Button type="button" variant="secondary" onClick={handleBack} disabled={finish.isPending}>
+              <Button type="button" variant="ghost" className="text-dim" onClick={handleBack} disabled={finish.isPending}>
                 Back
               </Button>
-              {plan.ready ? (
-                <Button type="button" onClick={handleRegister} disabled={finish.isPending}>
-                  {finish.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
-                  {plan.simulated ? 'Register (simulated payouts)' : 'Register'}
-                </Button>
-              ) : (
-                <Button type="button" variant="outline" onClick={handleRegisterSimulated} disabled={finish.isPending}>
-                  {finish.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
-                  Continue simulated
-                </Button>
-              )}
+              <Button type="button" variant="secondary" onClick={handleApproveHold} disabled={finish.isPending}>
+                {finish.isPending && finish.variables?.mode === 'hold' ? <LoaderCircle aria-hidden className="animate-spin" /> : <Check aria-hidden />}
+                Approve
+              </Button>
+              <Button type="button" variant={plan.ready && !plan.simulated ? 'default' : 'outline'} onClick={handleApproveSend} disabled={finish.isPending}>
+                {finish.isPending && finish.variables?.mode === 'send' ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
+                {plan.ready ? (plan.simulated ? 'Approve & send (simulated)' : 'Approve & send') : 'Approve & send (simulate rail)'}
+              </Button>
             </DialogFooter>
           </div>
         ) : null}

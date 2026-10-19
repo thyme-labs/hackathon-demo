@@ -6,6 +6,8 @@ import type {
   AuditActor,
   AuditEntry,
   Beneficiary,
+  BeneficiaryWallet,
+  BeneficiaryWalletSource,
   Invoice,
   InvoiceStatus,
   Payout,
@@ -69,6 +71,10 @@ export const beneficiaries = {
       ownership_proof_json: input.ownership_proof_json ?? null,
       created_at: nowIso(),
     })
+    // The registered wallet is the approved primary wallet (beneficiary_wallets, migration 004).
+    if (input.wallet) {
+      beneficiaryWallets.ensureApproved({ beneficiaryId: id, wallet: input.wallet, label: 'primary', source: 'registration', ownershipProofJson: input.ownership_proof_json ?? null, primary: true, approvedBy: 'owner' })
+    }
     return beneficiaries.get(id) as Beneficiary
   },
   get(id: string): Beneficiary | null {
@@ -99,6 +105,12 @@ export const beneficiaries = {
   update(id: string, patch: Partial<Omit<Beneficiary, 'id' | 'created_at'>>): Beneficiary | null {
     const normalized = { ...patch, wallet: patch.wallet === undefined ? undefined : patch.wallet?.toLowerCase() ?? null }
     updateRow('beneficiaries', id, normalized)
+    // Keep beneficiary_wallets in sync: a wallet written here is the owner's registered (approved, primary) wallet.
+    if (normalized.wallet) {
+      beneficiaryWallets.ensureApproved({ beneficiaryId: id, wallet: normalized.wallet, label: 'primary', source: 'registration', ownershipProofJson: patch.ownership_proof_json, primary: true, approvedBy: 'owner' })
+    } else if (patch.ownership_proof_json !== undefined) {
+      beneficiaryWallets.syncPrimaryProof(id, patch.ownership_proof_json ?? null)
+    }
     return beneficiaries.get(id)
   },
   /** Add a confirmed payment to the running totals. */
@@ -121,6 +133,197 @@ export const beneficiaries = {
   },
   remove(id: string): boolean {
     return getDb().query('DELETE FROM beneficiaries WHERE id = ?').run(id).changes > 0
+  },
+}
+
+// ---------------------------------------------------------------- beneficiary wallets (migration 004)
+
+const WALLET_ORDER = "is_primary DESC, CASE status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, created_at ASC"
+
+/** A stored proof only counts for the wallet it was signed for. undefined = leave the column alone. */
+function proofForWallet(wallet: string, json: string | null | undefined): string | null | undefined {
+  if (json === undefined) return undefined
+  if (!json) return null
+  try {
+    const parsed = JSON.parse(json) as { wallet?: string }
+    return typeof parsed.wallet === 'string' && parsed.wallet.toLowerCase() === wallet ? json : null
+  } catch {
+    return null
+  }
+}
+
+/** Marks `row` as the primary wallet (or none) and mirrors it into beneficiaries.wallet / ownership_proof_json. */
+function mirrorPrimaryWallet(beneficiaryId: string, row: BeneficiaryWallet | null): void {
+  getDb()
+    .query('UPDATE beneficiary_wallets SET is_primary = CASE WHEN id = ? THEN 1 ELSE 0 END WHERE beneficiary_id = ?')
+    .run(row?.id ?? '', beneficiaryId)
+  updateRow('beneficiaries', beneficiaryId, { wallet: row?.wallet ?? null, ownership_proof_json: row?.ownership_proof_json ?? null })
+}
+
+export interface EnsureApprovedWalletInput {
+  beneficiaryId: string
+  wallet: string
+  label?: string | null
+  source?: BeneficiaryWalletSource
+  /** undefined keeps the proof already on the row; null clears it; a proof for another wallet is ignored. */
+  ownershipProofJson?: string | null
+  /** Make it the primary wallet (mirrored into beneficiaries.wallet). */
+  primary?: boolean
+  approvedBy?: string
+}
+
+export interface ProposeWalletInput {
+  beneficiaryId: string
+  wallet: string
+  label?: string | null
+  source: BeneficiaryWalletSource
+}
+
+/**
+ * Wallets a beneficiary may be paid at. Only 'approved' rows are ever handed to the rail; a wallet printed on an
+ * invoice of a known payee lands here as 'pending' until the owner approves it explicitly (BEC vector).
+ */
+export const beneficiaryWallets = {
+  listByBeneficiary(beneficiaryId: string): BeneficiaryWallet[] {
+    return getDb()
+      .query(`SELECT * FROM beneficiary_wallets WHERE beneficiary_id = ? ORDER BY ${WALLET_ORDER}`)
+      .all(beneficiaryId) as BeneficiaryWallet[]
+  },
+  get(id: string): BeneficiaryWallet | null {
+    return (getDb().query('SELECT * FROM beneficiary_wallets WHERE id = ?').get(id) as BeneficiaryWallet | null) ?? null
+  },
+  find(beneficiaryId: string, wallet: string): BeneficiaryWallet | null {
+    return (
+      (getDb()
+        .query('SELECT * FROM beneficiary_wallets WHERE beneficiary_id = ? AND wallet = lower(?) LIMIT 1')
+        .get(beneficiaryId, wallet) as BeneficiaryWallet | null) ?? null
+    )
+  },
+  /** Approved wallets, primary first. */
+  approvedFor(beneficiaryId: string): BeneficiaryWallet[] {
+    return getDb()
+      .query("SELECT * FROM beneficiary_wallets WHERE beneficiary_id = ? AND status = 'approved' ORDER BY is_primary DESC, created_at ASC")
+      .all(beneficiaryId) as BeneficiaryWallet[]
+  },
+  /** An approved row for this wallet on any beneficiary (registry match by a secondary wallet). */
+  findApproved(wallet: string): BeneficiaryWallet | null {
+    return (
+      (getDb()
+        .query("SELECT * FROM beneficiary_wallets WHERE wallet = lower(?) AND status = 'approved' ORDER BY is_primary DESC, created_at ASC LIMIT 1")
+        .get(wallet) as BeneficiaryWallet | null) ?? null
+    )
+  },
+  isApproved(beneficiaryId: string, wallet: string): boolean {
+    return beneficiaryWallets.find(beneficiaryId, wallet)?.status === 'approved'
+  },
+  /**
+   * The wallet a payout goes to: the wallet printed on the invoice when it is approved, else the primary approved
+   * wallet, else the oldest approved one. Never a pending or revoked wallet; null when nothing is approved.
+   */
+  selectForPayout(beneficiaryId: string, invoiceWallet: string | null | undefined): string | null {
+    const approved = beneficiaryWallets.approvedFor(beneficiaryId)
+    if (approved.length === 0) return null
+    const printed = invoiceWallet?.toLowerCase() ?? null
+    const hit = printed ? approved.find((w) => w.wallet === printed) : undefined
+    return (hit ?? approved.find((w) => w.is_primary === 1) ?? approved[0]).wallet
+  },
+  /** Records a wallet as pending unless the beneficiary already has a row for it (any status). */
+  propose(input: ProposeWalletInput): { wallet: BeneficiaryWallet; created: boolean } {
+    const wallet = input.wallet.toLowerCase()
+    const existing = beneficiaryWallets.find(input.beneficiaryId, wallet)
+    if (existing) return { wallet: existing, created: false }
+    const id = newId()
+    insertRow('beneficiary_wallets', {
+      id,
+      beneficiary_id: input.beneficiaryId,
+      wallet,
+      label: input.label ?? null,
+      status: 'pending',
+      is_primary: 0,
+      ownership_proof_json: null,
+      source: input.source,
+      approved_by: null,
+      approved_at: null,
+      created_at: nowIso(),
+    })
+    return { wallet: beneficiaryWallets.get(id) as BeneficiaryWallet, created: true }
+  },
+  /** Upserts an approved row (registration path); optionally makes it the primary wallet. */
+  ensureApproved(input: EnsureApprovedWalletInput): BeneficiaryWallet {
+    const wallet = input.wallet.toLowerCase()
+    const proof = proofForWallet(wallet, input.ownershipProofJson)
+    const existing = beneficiaryWallets.find(input.beneficiaryId, wallet)
+    const ts = nowIso()
+    if (existing) {
+      updateRow('beneficiary_wallets', existing.id, {
+        status: 'approved',
+        label: existing.label ?? input.label ?? null,
+        ownership_proof_json: proof,
+        approved_by: existing.status === 'approved' ? existing.approved_by : (input.approvedBy ?? 'owner'),
+        approved_at: existing.status === 'approved' ? existing.approved_at : ts,
+      })
+    } else {
+      insertRow('beneficiary_wallets', {
+        id: newId(),
+        beneficiary_id: input.beneficiaryId,
+        wallet,
+        label: input.label ?? null,
+        status: 'approved',
+        is_primary: 0,
+        ownership_proof_json: proof ?? null,
+        source: input.source ?? 'manual',
+        approved_by: input.approvedBy ?? 'owner',
+        approved_at: ts,
+        created_at: ts,
+      })
+    }
+    const row = beneficiaryWallets.find(input.beneficiaryId, wallet) as BeneficiaryWallet
+    if (input.primary) mirrorPrimaryWallet(input.beneficiaryId, row)
+    return row
+  },
+  /** Owner approval. Becomes the primary wallet when the beneficiary has no approved primary yet. */
+  approve(id: string, approvedBy = 'owner'): BeneficiaryWallet | null {
+    const row = beneficiaryWallets.get(id)
+    if (!row) return null
+    if (row.status !== 'approved') updateRow('beneficiary_wallets', id, { status: 'approved', approved_by: approvedBy, approved_at: nowIso() })
+    const fresh = beneficiaryWallets.get(id) as BeneficiaryWallet
+    if (!beneficiaryWallets.approvedFor(fresh.beneficiary_id).some((w) => w.is_primary === 1)) mirrorPrimaryWallet(fresh.beneficiary_id, fresh)
+    return beneficiaryWallets.get(id)
+  },
+  /** Never paid again. A revoked primary hands the primary role to the next approved wallet (or none). */
+  revoke(id: string): BeneficiaryWallet | null {
+    const row = beneficiaryWallets.get(id)
+    if (!row) return null
+    updateRow('beneficiary_wallets', id, { status: 'revoked', is_primary: 0 })
+    if (row.is_primary === 1) mirrorPrimaryWallet(row.beneficiary_id, beneficiaryWallets.approvedFor(row.beneficiary_id)[0] ?? null)
+    return beneficiaryWallets.get(id)
+  },
+  /** Only an approved wallet can be primary; mirrored into beneficiaries.wallet. */
+  setPrimary(id: string): BeneficiaryWallet | null {
+    const row = beneficiaryWallets.get(id)
+    if (!row) return null
+    if (row.status !== 'approved') throw new Error('only an approved wallet can be the primary wallet')
+    mirrorPrimaryWallet(row.beneficiary_id, row)
+    return beneficiaryWallets.get(id)
+  },
+  /** beneficiaries.ownership_proof_json changed without a wallet change: copy it onto the primary row when it fits. */
+  syncPrimaryProof(beneficiaryId: string, proofJson: string | null): void {
+    const primary = beneficiaryWallets.approvedFor(beneficiaryId).find((w) => w.is_primary === 1)
+    if (!primary) return
+    updateRow('beneficiary_wallets', primary.id, { ownership_proof_json: proofForWallet(primary.wallet, proofJson) ?? null })
+  },
+  update(id: string, patch: Partial<Pick<BeneficiaryWallet, 'label' | 'ownership_proof_json'>>): BeneficiaryWallet | null {
+    updateRow('beneficiary_wallets', id, patch)
+    return beneficiaryWallets.get(id)
+  },
+  /** Confirmed EUR per wallet actually paid (payouts.to_wallet), for the Beneficiaries page. */
+  paidTotals(beneficiaryId: string): Record<string, { eur: number; count: number }> {
+    const rows = getDb()
+      .query(
+        "SELECT lower(to_wallet) AS wallet, COALESCE(SUM(amount_eur), 0) AS eur, COUNT(*) AS count FROM payouts WHERE beneficiary_id = ? AND status = 'confirmed' AND to_wallet IS NOT NULL GROUP BY lower(to_wallet)",
+      )
+      .all(beneficiaryId) as { wallet: string; eur: number; count: number }[]
+    return Object.fromEntries(rows.map((r) => [r.wallet, { eur: r.eur, count: r.count }]))
   },
 }
 
@@ -153,6 +356,8 @@ export const invoices = {
       score: input.score ?? null,
       checklist_json: input.checklist_json ?? null,
       decision_text: input.decision_text ?? null,
+      hold: input.hold ?? 0,
+      override: input.override ?? 0,
       created_at: ts,
       updated_at: ts,
     })
@@ -256,9 +461,18 @@ export const payouts = {
       error: input.error ?? null,
       simulated: input.simulated ?? 0,
       effective_gas_price_wei: input.effective_gas_price_wei ?? null,
+      // A fresh attempt number per invoice keeps the Thyme Idempotency-Key unique across retries.
+      attempt: input.attempt ?? payouts.nextAttempt(input.invoice_id),
+      override: input.override ?? 0,
+      to_wallet: input.to_wallet ? input.to_wallet.toLowerCase() : null,
       created_at: nowIso(),
     })
     return payouts.get(id) as Payout
+  },
+  /** 1 + the highest attempt recorded for this invoice (the Idempotency-Key suffix of the next payout). */
+  nextAttempt(invoiceId: string): number {
+    const row = getDb().query('SELECT COALESCE(MAX(attempt), 0) + 1 AS next FROM payouts WHERE invoice_id = ?').get(invoiceId) as { next: number } | null
+    return row?.next ?? 1
   },
   get(id: string): Payout | null {
     return (getDb().query('SELECT * FROM payouts WHERE id = ?').get(id) as Payout | null) ?? null
@@ -285,18 +499,24 @@ export const payouts = {
       .query('SELECT * FROM payouts ORDER BY created_at DESC LIMIT ?')
       .all(opts.limit ?? 200) as Payout[]
   },
-  /** Approved work for the Thyme Flow task: pending payouts whose invoice is approved/paying. */
-  /** payee_wallet is the beneficiary's wallet ON FILE (never the one printed on the PDF). */
+  /**
+   * Approved work for the Thyme Flow task: pending payouts whose invoice is approved/paying.
+   * payee_wallet is always an APPROVED wallet of the beneficiary: the one the payment agent already selected
+   * (to_wallet), else the approved wallet printed on the invoice, else the primary. Never a pending wallet.
+   */
   listPendingForThyme(): (Payout & { payee_wallet: string | null; invoice_number: string | null })[] {
-    return getDb()
+    const rows = getDb()
       .query(
-        `SELECT p.*, b.wallet AS payee_wallet, i.number AS invoice_number
+        `SELECT p.*, i.number AS invoice_number, i.payee_wallet AS invoice_wallet
          FROM payouts p JOIN invoices i ON i.id = p.invoice_id
-         LEFT JOIN beneficiaries b ON b.id = p.beneficiary_id
          WHERE p.status = 'pending' AND p.executor = 'thyme' AND i.status IN ('approved', 'paying')
          ORDER BY p.created_at ASC`,
       )
-      .all() as (Payout & { payee_wallet: string | null; invoice_number: string | null })[]
+      .all() as (Payout & { invoice_number: string | null; invoice_wallet: string | null })[]
+    return rows.map(({ invoice_wallet, ...p }) => ({
+      ...p,
+      payee_wallet: p.to_wallet ?? (p.beneficiary_id ? beneficiaryWallets.selectForPayout(p.beneficiary_id, invoice_wallet) : null),
+    }))
   },
   /**
    * Pending payouts for the in-process payment agent. Rows handed to Thyme in the last two minutes
@@ -466,6 +686,7 @@ export function dashboardCounts() {
     activeBeneficiaries: one("SELECT COUNT(*) AS n FROM beneficiaries WHERE status = 'active'"),
     queued: one("SELECT COUNT(*) AS n FROM invoices WHERE status IN ('queued', 'investigating')"),
     needsApproval: one("SELECT COUNT(*) AS n FROM invoices WHERE status = 'needs_approval'"),
+    onHold: one("SELECT COUNT(*) AS n FROM invoices WHERE status = 'approved' AND hold = 1"),
     paid: one("SELECT COUNT(*) AS n FROM invoices WHERE status = 'paid'"),
     paidEur: one("SELECT COALESCE(SUM(amount_eur), 0) AS n FROM payouts WHERE status = 'confirmed'"),
     agentsRunning: one("SELECT COUNT(*) AS n FROM agents WHERE status = 'running'"),

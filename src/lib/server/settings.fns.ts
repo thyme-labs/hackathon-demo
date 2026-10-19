@@ -37,12 +37,16 @@ export const getSettings = createServerFn({ method: 'GET' }).handler(async (): P
   const { serverEnv } = await import('../env')
   const { resolveExecutionMode } = await import('../payments/runner')
   const { buildOnboardingView } = await import('./thymeOnboarding')
+  const { readAutoPaySettings } = await import('./autopay')
   const boot = bootStatus()
+  const autoPay = readAutoPaySettings()
   return {
     safeAddress: settings.get('safeAddress'),
     executor: serverEnv.paymentExecutor(),
     provider: serverEnv.llmProvider(),
-    autoPayThreshold: serverEnv.autoPayThreshold(),
+    autoPayThreshold: autoPay.threshold,
+    autoPayEnabled: autoPay.enabled,
+    autoPaySource: autoPay.source,
     execution: await resolveExecutionMode(),
     thyme: buildOnboardingView(),
     env: ENV_NAMES.map((e) => {
@@ -56,14 +60,30 @@ export const getSettings = createServerFn({ method: 'GET' }).handler(async (): P
 
 export interface UpdateSettingsInput {
   safeAddress?: string | null
+  /** 0..100; stored in the settings table and used by the compliance pipeline from the next investigation on. */
+  autoPayThreshold?: number
+  /** Off: every approved invoice is held for the owner (needs approval) instead of being handed to the payment agent. */
+  autoPayEnabled?: boolean
 }
 
-/** The Safe address is the only free-form setting left; everything about Thyme comes from the onboarding. */
+/** Safe address and the auto-pay settings; everything about Thyme comes from the onboarding. */
 export const updateSettings = createServerFn({ method: 'POST' })
   .validator((input: UpdateSettingsInput) => input)
-  .handler(async ({ data }): Promise<{ ok: true }> => {
+  .handler(async ({ data }): Promise<{ ok: true; autoPay: { threshold: number; enabled: boolean } }> => {
     const { isAddress, getAddress } = await import('viem')
     const { settings, appendAudit } = await import('../store/repos')
+    const { AUTO_PAY_KEYS, clampThreshold, readAutoPaySettings } = await import('./autopay')
+    if (data.autoPayThreshold !== undefined) {
+      const n = Number(data.autoPayThreshold)
+      if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error('Auto-pay threshold must be a number between 0 and 100')
+      const threshold = clampThreshold(n)
+      settings.set(AUTO_PAY_KEYS.threshold, String(threshold))
+      appendAudit({ actor: 'owner', event: 'settings.updated', details: { autoPayThreshold: threshold } })
+    }
+    if (data.autoPayEnabled !== undefined) {
+      settings.set(AUTO_PAY_KEYS.enabled, data.autoPayEnabled ? '1' : '0')
+      appendAudit({ actor: 'owner', event: data.autoPayEnabled ? 'settings.autopay_on' : 'settings.autopay_off', details: { autoPayEnabled: data.autoPayEnabled } })
+    }
     if (data.safeAddress !== undefined) {
       const t = data.safeAddress?.trim() ?? ''
       if (t !== '' && !isAddress(t)) throw new Error('Safe address is not a valid address')
@@ -76,7 +96,8 @@ export const updateSettings = createServerFn({ method: 'POST' })
       settings.set('safeAddress', safe)
       appendAudit({ actor: 'owner', event: 'settings.updated', details: { safeAddress: safe } })
     }
-    return { ok: true }
+    const autoPay = readAutoPaySettings()
+    return { ok: true, autoPay: { threshold: autoPay.threshold, enabled: autoPay.enabled } }
   })
 
 export interface ResetDemoResult {

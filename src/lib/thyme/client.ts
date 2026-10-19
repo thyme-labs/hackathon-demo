@@ -524,7 +524,9 @@ export async function invokeWebhook(
     response = await fetch(webhookUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify(args ?? {}),
+      // An empty POST runs the executable with its saved args. A JSON body replaces them, which
+      // Thyme only accepts when the function has an extracted arguments schema.
+      body: args === undefined ? undefined : JSON.stringify(args),
       signal: combineSignals(timeoutMs, options.signal),
     })
   } catch (error) {
@@ -658,7 +660,8 @@ export async function triggerPayout(invoiceId: string, options: TriggerPayoutOpt
   if (webhookUrl) {
     const appUrl = options.appUrl ?? env.appUrl
     if (!appUrl) throw new ThymeApiError('APP_URL is not set; the Flow task needs it to call back', { status: 0, code: 'not_configured' })
-    const result = await invokeWebhook(webhookUrl, webhookArgsFor(appUrl, invoiceId, { safeAddress: options.safeAddress, pullToken: options.pullToken ?? env.pullToken }), {
+    // Saved args already carry apiUrl and the pull token; the task pays the oldest pending payout.
+    const result = await invokeWebhook(webhookUrl, undefined, {
       idempotencyKey,
       respondAsync: options.respondAsync,
       timeoutMs: options.timeoutMs,

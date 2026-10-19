@@ -6,7 +6,8 @@
 //                with a labelled placeholder hash so the whole flow still runs in mock mode.
 import { type Address, getAddress, type Hex, isAddress, keccak256, toHex } from 'viem'
 import { type PaymentExecutorName, serverEnv } from '../env'
-import { appendAudit, beneficiaries, invoices, nowIso, payouts, settings } from '../store/repos'
+import type { PayoutActionResult } from '../server/dto'
+import { appendAudit, beneficiaries, beneficiaryWallets, invoices, nowIso, payouts, settings } from '../store/repos'
 import type { AuditActor, Invoice, Payout } from '../store/types'
 import { THYME_SETTINGS_KEYS } from '../thyme/types'
 
@@ -20,6 +21,8 @@ const REFUSAL_DELAY_MS = 1_200
 /** One tick waits this long for Thyme to settle; afterwards the callback or the next tick finishes the row. */
 const THYME_WAIT_MS = 150_000
 const LIMIT_WINDOW_MS = 30 * 86_400_000
+/** A payout pending or submitted for longer than this without a result is "stuck": the owner may retry, check or discard it. */
+export const STUCK_AFTER_MS = 5 * 60_000
 
 export type ExecutionMode = 'thyme' | 'simulated'
 
@@ -53,6 +56,35 @@ export async function resolveExecutionMode(executor: PaymentExecutorName = serve
 
 export function simulatedTxHash(seed: string): Hex {
   return keccak256(toHex(`thyme-payroll:simulated:${seed}`))
+}
+
+/** Pending or submitted for longer than STUCK_AFTER_MS without a result. */
+export function isPayoutStuck(p: Pick<Payout, 'status' | 'submitted_at' | 'created_at'>, now = Date.now()): boolean {
+  if (p.status !== 'pending' && p.status !== 'submitted') return false
+  const since = new Date(p.submitted_at ?? p.created_at).getTime()
+  return Number.isFinite(since) && now - since > STUCK_AFTER_MS
+}
+
+function isSettled(p: Payout): boolean {
+  return p.status === 'confirmed' || p.status === 'failed' || p.status === 'reverted'
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function actionResult(payout: Payout, message: string, extra: Partial<PayoutActionResult> = {}): PayoutActionResult {
+  return {
+    payoutId: payout.id,
+    status: payout.status,
+    message,
+    thymeStatus: null,
+    txHash: payout.tx_hash,
+    error: payout.error,
+    simulated: payout.simulated === 1,
+    activePayoutId: isSettled(payout) ? null : payout.id,
+    ...extra,
+  }
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -134,15 +166,15 @@ function spentLast30Days(beneficiaryId: string, excludePayoutId: string): number
 }
 
 /**
- * Agent-side rules the rail enforces before anything reaches Thyme: the recipient must be the wallet on
- * file of an active beneficiary and the amount must fit the 30-day limit. The chain does not know these;
- * Thyme's Roles scope only guarantees EURC.transfer from this Safe.
+ * Agent-side rules the rail enforces before anything reaches Thyme: the recipient must be an APPROVED wallet
+ * of an active beneficiary (never a wallet still pending owner approval) and the amount must fit the 30-day
+ * limit. The chain does not know these; Thyme's Roles scope only guarantees EURC.transfer from this Safe.
  */
-function agentRefusal(payout: Payout, to: Address, onFile: Address | null, beneficiary: ReturnType<typeof beneficiaries.get>): string | null {
-  if (!beneficiary) return `no registered beneficiary for this payout; the rail only pays wallets on file (agent rule)`
-  if (!onFile) return `${beneficiary.name} has no wallet on file (agent rule)`
-  if (onFile.toLowerCase() !== to.toLowerCase()) {
-    return `${to} is not the wallet on file for ${beneficiary.name} (${onFile}). Thyme only ever receives registered wallets from /api/thyme/pending, so even a fooled agent cannot pay it (agent rule). On chain, Thyme's Roles scope allows nothing but EURC.transfer from this Safe (chain rule).`
+function agentRefusal(payout: Payout, to: Address, approved: Address[], beneficiary: ReturnType<typeof beneficiaries.get>): string | null {
+  if (!beneficiary) return `no registered beneficiary for this payout; the rail only pays approved wallets on file (agent rule)`
+  if (approved.length === 0) return `${beneficiary.name} has no approved wallet on file (agent rule)`
+  if (!approved.some((a) => a.toLowerCase() === to.toLowerCase())) {
+    return `${to} is not an approved wallet of ${beneficiary.name} (approved: ${approved.join(', ')}). A wallet printed on an invoice is paid only after the owner approved it on the Beneficiaries page. Thyme only ever receives approved wallets from /api/thyme/pending, so even a fooled agent cannot pay it (agent rule). On chain, Thyme's Roles scope allows nothing but EURC.transfer from this Safe (chain rule).`
   }
   if (beneficiary.status !== 'active') return `${beneficiary.name} is ${beneficiary.status}; only active beneficiaries are paid (agent rule)`
   const spent = spentLast30Days(beneficiary.id, payout.id)
@@ -152,7 +184,11 @@ function agentRefusal(payout: Payout, to: Address, onFile: Address | null, benef
   return null
 }
 
-/** Execute one pending payout to the beneficiary wallet ON FILE. Returns the settled (or still in-flight) row. */
+/**
+ * Execute one pending payout to an APPROVED wallet of the beneficiary: the wallet printed on the invoice when the
+ * owner approved it, else the primary wallet on file. A pending wallet is never paid. Returns the settled (or
+ * still in-flight) row; payouts.to_wallet records the recipient.
+ */
 export async function executeOnePayout(payoutId: string, opts: { force?: boolean; to?: Address } = {}): Promise<Payout> {
   const payout = payouts.get(payoutId)
   if (!payout) throw new Error(`payout ${payoutId} not found`)
@@ -160,16 +196,17 @@ export async function executeOnePayout(payoutId: string, opts: { force?: boolean
   const invoice = invoices.get(payout.invoice_id)
   if (!invoice) throw new Error(`invoice ${payout.invoice_id} not found`)
   const beneficiary = payout.beneficiary_id ? beneficiaries.get(payout.beneficiary_id) : null
-  const onFile = addr(beneficiary?.wallet)
-  const to = opts.to ?? onFile
+  const approved = beneficiary ? beneficiaryWallets.approvedFor(beneficiary.id).map((w) => addr(w.wallet)).filter((a): a is Address => a !== null) : []
+  const selected = beneficiary ? addr(beneficiaryWallets.selectForPayout(beneficiary.id, invoice.payee_wallet)) : null
+  const to = opts.to ?? selected ?? addr(beneficiary?.wallet)
   if (!to) {
-    return settle({ payout, invoice, status: 'failed', txHash: null, blockNumber: null, gasUsed: null, effectiveGasPriceWei: null, error: 'beneficiary has no wallet on file', simulated: false, actor: 'agent' })
+    return settle({ payout, invoice, status: 'failed', txHash: null, blockNumber: null, gasUsed: null, effectiveGasPriceWei: null, error: 'beneficiary has no approved wallet on file', simulated: false, actor: 'agent' })
   }
 
   const { mode, reason } = await resolveExecutionMode()
   const ts = nowIso()
 
-  const refusal = agentRefusal(payout, to, onFile, beneficiary)
+  const refusal = agentRefusal(payout, to, approved, beneficiary)
   if (refusal) {
     appendAudit({ actor: 'agent', event: 'payout.refused', invoiceId: invoice.id, beneficiaryId: payout.beneficiary_id, details: { payout_id: payout.id, to, amount_eurc: payout.amount_eurc, mode, force: opts.force ?? false, reason: refusal } })
     await sleep(REFUSAL_DELAY_MS)
@@ -177,7 +214,7 @@ export async function executeOnePayout(payoutId: string, opts: { force?: boolean
   }
 
   if (mode === 'simulated') {
-    payouts.setStatus(payout.id, 'submitted', { submitted_at: ts })
+    payouts.setStatus(payout.id, 'submitted', { submitted_at: ts, to_wallet: to.toLowerCase() })
     invoices.setStatus(invoice.id, 'paying')
     appendAudit({ actor: 'agent', event: 'payout.submitted', invoiceId: invoice.id, beneficiaryId: payout.beneficiary_id, details: { payout_id: payout.id, to, amount_eurc: payout.amount_eurc, mode, reason, force: opts.force ?? false } })
     const submitted = payouts.get(payout.id) as Payout
@@ -187,7 +224,7 @@ export async function executeOnePayout(payoutId: string, opts: { force?: boolean
 
   // Hand the payout to Thyme. The row stays `pending` because the task pulls pending rows from
   // /api/thyme/pending; submitted_at marks the hand-over so the next tick does not trigger it again.
-  payouts.update(payout.id, { submitted_at: ts, error: null })
+  payouts.update(payout.id, { submitted_at: ts, error: null, to_wallet: to.toLowerCase() })
   invoices.setStatus(invoice.id, 'paying')
   appendAudit({ actor: 'agent', event: 'payout.submitted', invoiceId: invoice.id, beneficiaryId: payout.beneficiary_id, details: { payout_id: payout.id, to, amount_eurc: payout.amount_eurc, mode, reason, force: opts.force ?? false } })
 
@@ -198,7 +235,7 @@ export async function executeOnePayout(payoutId: string, opts: { force?: boolean
   try {
     const result = await executePayout(
       { payoutId: payout.id, invoiceId: invoice.id, payee: to, amountEurcUnits: BigInt(payout.amount_eurc) },
-      { webhookUrl: ids.webhookUrl ?? undefined, safeAddress: readSafeAddress() ?? undefined, appUrl: env.appUrl, pullToken: env.pullToken, timeoutMs: THYME_WAIT_MS },
+      { webhookUrl: ids.webhookUrl ?? undefined, attempt: payout.attempt, safeAddress: readSafeAddress() ?? undefined, appUrl: env.appUrl, pullToken: env.pullToken, timeoutMs: THYME_WAIT_MS },
     )
     if (result.thymeExecutionId) settings.set(THYME_SETTINGS_KEYS.lastExecutionId, result.thymeExecutionId)
     appendAudit({
@@ -251,6 +288,161 @@ export async function executeOnePayout(payoutId: string, opts: { force?: boolean
     appendAudit({ actor: 'thyme', event: 'payout.trigger_failed', invoiceId: invoice.id, beneficiaryId: payout.beneficiary_id, details: { payout_id: payout.id, error: message } })
     return payouts.get(payout.id) as Payout
   }
+}
+
+/**
+ * "Check status": re-read the Thyme execution recorded on a payout and settle the row when Thyme has a terminal
+ * answer (the callback may have been lost). Idempotent: a settled row is never changed, only reported.
+ */
+export async function reconcilePayout(payoutId: string): Promise<PayoutActionResult> {
+  const payout = payouts.get(payoutId)
+  if (!payout) throw new Error(`payout ${payoutId} not found`)
+  if (isSettled(payout)) return actionResult(payout, `Already ${payout.status}; nothing to check`)
+  if (payout.simulated === 1) return actionResult(payout, 'Simulated payout: there is no Thyme execution to read')
+  if (!payout.thyme_execution_id) {
+    return actionResult(payout, payout.error ? `No Thyme execution yet: ${payout.error}` : 'No Thyme execution recorded yet: the trigger has not gone through. Retry sends it again.')
+  }
+  const { getThymeEnv } = await import('../thyme/env')
+  if (!getThymeEnv().apiKey) return actionResult(payout, 'THYME_API_KEY is not set: the execution cannot be read. Wait for the callback or discard the payout.')
+  const invoice = invoices.get(payout.invoice_id)
+  if (!invoice) throw new Error(`invoice ${payout.invoice_id} not found`)
+  const { getExecution } = await import('../thyme/client')
+  const { mapExecutionStatus } = await import('../thyme/executor')
+  let execution: Awaited<ReturnType<typeof getExecution>>
+  try {
+    execution = await getExecution(payout.thyme_execution_id)
+  } catch (error) {
+    const { describeThymeError } = await import('../server/thymeOnboarding')
+    const message = describeThymeError(error)
+    appendAudit({ actor: 'thyme', event: 'payout.status_check_failed', invoiceId: payout.invoice_id, beneficiaryId: payout.beneficiary_id, details: { payout_id: payout.id, execution_id: payout.thyme_execution_id, error: message } })
+    throw new Error(message)
+  }
+  const mapped = mapExecutionStatus(execution.status)
+  appendAudit({ actor: 'thyme', event: 'payout.status_checked', invoiceId: payout.invoice_id, beneficiaryId: payout.beneficiary_id, details: { payout_id: payout.id, execution_id: execution._id, thyme_status: execution.status, tx_hash: execution.txHash ?? null, error: execution.errorMessage ?? null } })
+  const gasUsed = execution.gasUsed ? Number(execution.gasUsed) : null
+  if (mapped === 'confirmed') {
+    const settled = settle({ payout, invoice, status: 'confirmed', txHash: execution.txHash ?? null, blockNumber: execution.blockNumber ?? null, gasUsed, effectiveGasPriceWei: null, error: null, simulated: false, actor: 'chain', thymeExecutionId: execution._id })
+    return actionResult(settled, 'Thyme confirmed the transfer; the payout is now confirmed', { thymeStatus: execution.status })
+  }
+  if (mapped === 'failed' || mapped === 'skipped') {
+    const base = execution.errorMessage ?? `Thyme execution ${execution.status}`
+    const logs = await readExecutionErrorLogs(execution._id)
+    const settled = settle({ payout, invoice, status: 'failed', txHash: execution.txHash ?? null, blockNumber: execution.blockNumber ?? null, gasUsed, effectiveGasPriceWei: null, error: logs && !base.includes(logs) ? `${base} — ${logs}` : base, simulated: false, actor: 'thyme', thymeExecutionId: execution._id })
+    return actionResult(settled, `Thyme reports ${execution.status}; the payout is marked failed and can be retried`, { thymeStatus: execution.status })
+  }
+  // Still in flight at Thyme: mirror the hash and the submitted state, nothing else.
+  const refreshed = payouts.setStatus(payout.id, mapped === 'submitted' ? 'submitted' : payout.status, { tx_hash: execution.txHash ?? payout.tx_hash, submitted_at: payout.submitted_at ?? (mapped === 'submitted' ? nowIso() : null) }) as Payout
+  if (mapped === 'submitted') invoices.setStatus(invoice.id, 'paying')
+  return actionResult(refreshed, `Still ${execution.status} at Thyme; the callback or the next check settles it`, { thymeStatus: execution.status })
+}
+
+/** True when the stored checklist has a failing entry: the agent's verdict stands until the checks are re-run. */
+function hasFailedChecks(invoice: Invoice): boolean {
+  if (!invoice.checklist_json) return false
+  try {
+    const snapshot = JSON.parse(invoice.checklist_json) as { entries?: { status?: string }[] }
+    return (snapshot.entries ?? []).some((e) => e.status === 'fail')
+  } catch {
+    return false
+  }
+}
+
+function inFlightSibling(invoiceId: string, excludeId: string): Payout | null {
+  return payouts.byInvoice(invoiceId).find((p) => p.id !== excludeId && (p.status === 'pending' || p.status === 'submitted')) ?? null
+}
+
+/**
+ * "Retry payout": a failed or reverted row gets a new pending payout with the next attempt number (a NEW
+ * Idempotency-Key, so Thyme starts a fresh run instead of replaying); a stuck pending row is re-armed in place
+ * with the next attempt. A row Thyme still reports as running is never retried (that could pay twice).
+ * Safe to click twice: a second click finds the in-flight row and reports it.
+ */
+export async function retryPayout(payoutId: string): Promise<PayoutActionResult> {
+  const payout = payouts.get(payoutId)
+  if (!payout) throw new Error(`payout ${payoutId} not found`)
+  const invoice = invoices.get(payout.invoice_id)
+  if (!invoice) throw new Error(`invoice ${payout.invoice_id} not found`)
+  if (payout.status === 'confirmed') return actionResult(payout, 'Already confirmed; nothing to retry')
+  if (invoice.status === 'paid' || payouts.byInvoice(invoice.id).some((p) => p.status === 'confirmed')) {
+    return actionResult(payout, 'This invoice is already paid; a retry would pay it twice')
+  }
+  if (invoice.status === 'rejected' || (hasFailedChecks(invoice) && invoice.override !== 1)) {
+    // The compliance agent stopped this invoice (e.g. the forced fraud demo): the rail never retries it.
+    // An owner override ("Send anyway", audit owner.override) is the one documented exception.
+    return actionResult(payout, 'The checks stopped this invoice; nothing is retried. Re-run the checks or register the right wallet first.')
+  }
+  const sibling = inFlightSibling(invoice.id, payout.id)
+  if (sibling) return actionResult(sibling, `A payout for this invoice is already ${sibling.status}`, { activePayoutId: sibling.id })
+
+  // Anything Thyme may still be running: read it first, retry only when Thyme itself says it is over.
+  if (payout.thyme_execution_id && payout.simulated !== 1) {
+    let checked: PayoutActionResult
+    try {
+      checked = await reconcilePayout(payout.id)
+    } catch (error) {
+      checked = actionResult(payout, describeError(error))
+    }
+    const fresh = payouts.get(payout.id) as Payout
+    if (fresh.status === 'confirmed') return checked
+    const thymeRunning = checked.thymeStatus !== null && checked.thymeStatus !== 'failed' && checked.thymeStatus !== 'skipped'
+    if (thymeRunning) return { ...checked, message: `${checked.message}. Not retried: Thyme may still send this transfer.` }
+    if (fresh.status === 'submitted' && checked.thymeStatus === null) {
+      return { ...checked, message: `${checked.message}. Not retried while the row is submitted: check the status or discard it first.` }
+    }
+  } else if (payout.status === 'submitted') {
+    return actionResult(payout, 'Submitted without a Thyme execution id: discard it first, then retry')
+  }
+
+  const current = payouts.get(payout.id) as Payout
+  // Handed to Thyme moments ago and the trigger is still awaiting its answer: re-arming now could send twice.
+  if (current.status === 'pending' && current.submitted_at && !current.error && Date.now() - new Date(current.submitted_at).getTime() < THYME_WAIT_MS) {
+    const seconds = Math.round((Date.now() - new Date(current.submitted_at).getTime()) / 1000)
+    return actionResult(current, `Handed to Thyme ${seconds}s ago and still waiting for its answer; retry after ${Math.round(THYME_WAIT_MS / 1000)}s or check the status`)
+  }
+  const attempt = payouts.nextAttempt(invoice.id)
+  let active: Payout
+  if (current.status === 'pending') {
+    active = payouts.update(current.id, { attempt, submitted_at: null, error: null, thyme_execution_id: null, tx_hash: null }) as Payout
+  } else {
+    active = payouts.create({
+      invoice_id: current.invoice_id,
+      beneficiary_id: current.beneficiary_id,
+      amount_eurc: current.amount_eurc,
+      amount_eur: current.amount_eur,
+      currency: current.currency,
+      fx_rate: current.fx_rate,
+      cnb_rate: current.cnb_rate,
+      cnb_valid_for: current.cnb_valid_for,
+      amount_czk: current.amount_czk,
+      executor: 'thyme',
+      status: 'pending',
+      attempt,
+      override: current.override,
+    })
+  }
+  invoices.setStatus(invoice.id, 'approved')
+  appendAudit({
+    actor: 'owner',
+    event: 'payout.retried',
+    invoiceId: invoice.id,
+    beneficiaryId: current.beneficiary_id,
+    details: { payout_id: active.id, previous_payout_id: current.id === active.id ? null : current.id, previous_status: current.status, attempt, previous_error: current.error },
+  })
+  // Hand it to the payment agent (respects the pause switch and the lock); the UI polls the row.
+  void runPaymentsOnce()
+  return actionResult(active, current.id === active.id ? `Re-armed as attempt ${attempt}; the payment agent sends it again` : `New payout queued as attempt ${attempt}`, { activePayoutId: active.id })
+}
+
+/** "Mark as failed / discard": settle a stuck pending or submitted payout as failed so the queue moves on. Idempotent. */
+export async function discardPayout(payoutId: string, reason = 'Discarded by the owner'): Promise<PayoutActionResult> {
+  const payout = payouts.get(payoutId)
+  if (!payout) throw new Error(`payout ${payoutId} not found`)
+  if (isSettled(payout)) return actionResult(payout, `Already ${payout.status}; nothing to discard`)
+  const invoice = invoices.get(payout.invoice_id)
+  if (!invoice) throw new Error(`invoice ${payout.invoice_id} not found`)
+  appendAudit({ actor: 'owner', event: 'payout.discarded', invoiceId: invoice.id, beneficiaryId: payout.beneficiary_id, details: { payout_id: payout.id, previous_status: payout.status, execution_id: payout.thyme_execution_id, reason } })
+  const settled = settle({ payout, invoice, status: 'failed', txHash: payout.tx_hash as Hex | null, blockNumber: payout.block_number, gasUsed: payout.gas_used, effectiveGasPriceWei: payout.effective_gas_price_wei, error: reason, simulated: payout.simulated === 1, actor: 'owner', thymeExecutionId: payout.thyme_execution_id ?? undefined })
+  return actionResult(settled, 'Payout marked as failed; the invoice is failed and can be re-run or retried')
 }
 
 const lock = { busy: false }

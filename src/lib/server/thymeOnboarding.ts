@@ -9,7 +9,7 @@ import { EURC_TRANSFER_RULE, executableBlockReason, getThymeClient, isThymeApiEr
 import { canOnboardThyme, getThymeEnv, getThymeTriggerMode, type ThymeEnv } from '../thyme/env'
 import { SEPOLIA_CHAIN_ID } from '../thyme/eurc'
 import { THYME_OWNED_SETTINGS_KEYS, THYME_SETTINGS_KEYS as K, type ThymeExecutable } from '../thyme/types'
-import type { ConfirmSetupResult, ExecutableResult, PrepareProfileResult, ProfileStatusResult, ThymeExecutableState, ThymeOnboardingView, ThymeProfileState } from './dto'
+import type { ConfirmSetupResult, ExecutableResult, OnboardingStep, PrepareProfileResult, ProfileStatusResult, ThymeErrorRecord, ThymeExecutableState, ThymeOnboardingView, ThymeProfileState } from './dto'
 
 if (typeof window !== 'undefined') {
   throw new Error('src/lib/server/thymeOnboarding.ts is server-only')
@@ -38,6 +38,8 @@ export interface ThymeOnboardingState {
   webhookUrl: string | null
   lastExecutionId: string | null
   simulatedAt: string | null
+  /** Last failed Thyme call, persisted so a reload still shows it under the right step. */
+  lastError: ThymeErrorRecord | null
 }
 
 const addr = (v: string | null): Address | null => (v && isAddress(v) ? getAddress(v) : null)
@@ -48,6 +50,17 @@ function asProfileState(v: string | null): ThymeProfileState | null {
 
 function asExecutableState(v: string | null): ThymeExecutableState | null {
   return v === 'provisioning' || v === 'active' || v === 'paused' || v === 'error' || v === 'deleted' ? v : null
+}
+
+function asErrorRecord(json: string | null): ThymeErrorRecord | null {
+  if (!json) return null
+  try {
+    const v = JSON.parse(json) as Partial<ThymeErrorRecord>
+    if (typeof v.message !== 'string' || typeof v.step !== 'string') return null
+    return { step: v.step as OnboardingStep, message: v.message, code: v.code ?? null, requestId: v.requestId ?? null, httpStatus: v.httpStatus ?? null, at: v.at ?? new Date(0).toISOString() }
+  } catch {
+    return null
+  }
 }
 
 export function readOnboardingState(): ThymeOnboardingState {
@@ -68,6 +81,7 @@ export function readOnboardingState(): ThymeOnboardingState {
     webhookUrl: all[K.webhookUrl] ?? null,
     lastExecutionId: all[K.lastExecutionId] ?? null,
     simulatedAt: all[K.simulatedAt] ?? null,
+    lastError: asErrorRecord(all[K.lastError] ?? null),
   }
 }
 
@@ -97,13 +111,21 @@ function hostOf(url: string): string | null {
   }
 }
 
-function stepOf(state: ThymeOnboardingState): ThymeOnboardingView['step'] {
+export function stepOf(state: ThymeOnboardingState): OnboardingStep {
   if (isOnboarded(state)) return 'done'
   if (state.profileStatus === 'active') return 'executable'
+  if (state.profileId && state.profileStatus === 'pending' && state.setupTxHash) return 'confirm'
   if (state.profileId && state.profileStatus === 'pending') return 'setup'
   if (state.safeAddress) return 'enable'
   if (state.ownerAddress) return 'safe'
   return 'connect'
+}
+
+/** Persist where the onboarding stands so a reload (or another tab) resumes at the same step. */
+function commitStep(): OnboardingStep {
+  const step = stepOf(readOnboardingState())
+  settings.set(K.step, step)
+  return step
 }
 
 export function buildOnboardingView(state: ThymeOnboardingState = readOnboardingState(), env: ThymeEnv = getThymeEnv()): ThymeOnboardingView {
@@ -132,6 +154,7 @@ export function buildOnboardingView(state: ThymeOnboardingState = readOnboarding
     hasWebhook: Boolean(state.webhookUrl),
     lastExecutionId: state.lastExecutionId,
     simulatedAt: state.simulatedAt,
+    lastError: state.lastError,
     onboarded,
     simulated,
     ready: onboarded || simulated,
@@ -168,6 +191,31 @@ export function describeThymeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/** Structured form of a failed call: message, Thyme code, requestId and HTTP status when present. */
+export function errorRecordOf(step: OnboardingStep, error: unknown): ThymeErrorRecord {
+  return {
+    step,
+    message: describeThymeError(error),
+    code: isThymeApiError(error) ? error.code : null,
+    requestId: isThymeApiError(error) ? (error.requestId ?? null) : null,
+    httpStatus: isThymeApiError(error) && error.status ? error.status : null,
+    at: new Date().toISOString(),
+  }
+}
+
+/** Remember the failure under its step (settings) and in the audit log; returns the readable message. */
+function recordStepError(step: OnboardingStep, error: unknown): string {
+  const record = errorRecordOf(step, error)
+  settings.set(K.lastError, JSON.stringify(record))
+  appendAudit({ actor: 'thyme', event: 'thyme.step_failed', details: { step, message: record.message, code: record.code, request_id: record.requestId, http_status: record.httpStatus } })
+  commitStep()
+  return record.message
+}
+
+function clearStepError(): void {
+  settings.set(K.lastError, null)
+}
+
 function requireConfigured(env: ThymeEnv): asserts env is ThymeEnv & { apiKey: string; projectId: string; functionId: string } {
   const missing = missingEnv(env)
   if (missing.length > 0) throw new Error(`Thyme is not configured on this server: set ${missing.join(', ')}`)
@@ -201,9 +249,14 @@ export async function prepareProfile(input: { safeAddress: string; ownerAddress:
   try {
     prepared = await client.preparePayrollProfile({ projectId: env.projectId, alias, safeAddress, ownerAddress })
   } catch (error) {
-    throw new Error(describeThymeError(error))
+    settings.set(K.safeAddress, safeAddress)
+    settings.set(K.ownerAddress, ownerAddress)
+    throw new Error(recordStepError('enable', error))
   }
 
+  // Resuming the same pending profile keeps the hash of a transaction the owner already sent.
+  const sameProfile = previous.profileId === prepared.profile.profileId
+  clearStepError()
   settings.set(K.safeAddress, safeAddress)
   settings.set(K.ownerAddress, ownerAddress)
   settings.set(K.profileId, prepared.profile.profileId)
@@ -212,8 +265,10 @@ export async function prepareProfile(input: { safeAddress: string; ownerAddress:
   settings.set(K.profileError, null)
   settings.set(K.rolesProxy, prepared.predicted.rolesProxy)
   settings.set(K.executorSafe, prepared.predicted.executorSafe)
-  settings.set(K.setupTxHash, null)
+  settings.set(K.roleKey, prepared.profile.roleKey)
+  if (!sameProfile) settings.set(K.setupTxHash, null)
   settings.set(K.simulatedAt, null)
+  commitStep()
   appendAudit({
     actor: 'thyme',
     event: 'thyme.profile_prepared',
@@ -250,7 +305,11 @@ export async function confirmSetup(input: { profileId: string; txHash: string })
   const state = readOnboardingState()
   if (state.profileId !== input.profileId) throw new Error('This profile is not the one being onboarded')
   const txHash = input.txHash as Hex
+  if (state.profileStatus === 'active') {
+    return { status: 'active', message: 'Roles profile already active on the Safe', rolesProxy: state.rolesProxy, executorSafe: state.executorSafe, txHash: state.setupTxHash ?? txHash }
+  }
   settings.set(K.setupTxHash, txHash)
+  commitStep()
   const client = getThymeClient(env)
   try {
     const result = await client.confirmRolesSetup(input.profileId, txHash)
@@ -259,6 +318,8 @@ export async function confirmSetup(input: { profileId: string; txHash: string })
     settings.set(K.rolesProxy, result.rolesProxyAddress)
     settings.set(K.executorSafe, result.executorSafeAddress)
     settings.set(K.setupTxHash, result.txHash)
+    clearStepError()
+    commitStep()
     appendAudit({
       actor: 'chain',
       event: 'thyme.profile_active',
@@ -267,14 +328,37 @@ export async function confirmSetup(input: { profileId: string; txHash: string })
     return { status: 'active', message: 'Roles profile active on the Safe', rolesProxy: result.rolesProxyAddress, executorSafe: result.executorSafeAddress, txHash: result.txHash }
   } catch (error) {
     if (isThymeApiError(error, 'setup_not_mined')) {
-      return { status: 'pending', message: describeThymeError(error), rolesProxy: state.rolesProxy, executorSafe: state.executorSafe, txHash }
+      // Not a failure: the receipt is not visible to Thyme yet. Keep the step at 'confirm' and let the owner retry.
+      const message = recordStepError('confirm', error)
+      return { status: 'pending', message, rolesProxy: state.rolesProxy, executorSafe: state.executorSafe, txHash }
     }
-    const message = describeThymeError(error)
-    settings.set(K.profileStatus, isThymeApiError(error) && error.status === 409 ? 'failed' : state.profileStatus ?? 'pending')
+    const message = recordStepError('confirm', error)
+    // A refusal (409) means this transaction will never activate the profile; anything else may be transient.
+    const refused = isThymeApiError(error) && error.status === 409
+    settings.set(K.profileStatus, refused ? 'failed' : (state.profileStatus ?? 'pending'))
     settings.set(K.profileError, message)
+    commitStep()
     appendAudit({ actor: 'thyme', event: 'thyme.profile_setup_failed', details: { profile_id: input.profileId, tx_hash: txHash, error: message } })
     throw new Error(message)
   }
+}
+
+/**
+ * The owner's wallet returned a hash: store it before the receipt exists so a reload during mining lands on the
+ * confirm step with the hash at hand. Also the entry point for "I already sent it: here is the hash".
+ */
+export function recordSetupTx(input: { profileId: string; txHash: string }): { txHash: Hex; step: OnboardingStep } {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(input.txHash)) throw new Error('txHash must be a 32-byte transaction hash')
+  const state = readOnboardingState()
+  if (state.profileId !== input.profileId) throw new Error('This profile is not the one being onboarded')
+  const txHash = input.txHash as Hex
+  if (state.setupTxHash?.toLowerCase() !== txHash.toLowerCase()) {
+    settings.set(K.setupTxHash, txHash)
+    settings.set(K.profileError, null)
+    if (state.profileStatus === 'failed') settings.set(K.profileStatus, 'pending')
+    appendAudit({ actor: 'owner', event: 'thyme.setup_tx_recorded', details: { profile_id: input.profileId, tx_hash: txHash } })
+  }
+  return { txHash, step: commitStep() }
 }
 
 /** Poll target after /setup: re-read the profile from Thyme and cache its state. */
@@ -294,7 +378,9 @@ export async function refreshProfile(profileId: string): Promise<ProfileStatusRe
   settings.set(K.profileError, roles?.lastError ?? null)
   if (roles?.rolesProxyAddress) settings.set(K.rolesProxy, roles.rolesProxyAddress)
   if (roles?.executorSafeAddress) settings.set(K.executorSafe, roles.executorSafeAddress)
+  if (roles?.roleKey) settings.set(K.roleKey, roles.roleKey)
   if (roles?.setupTxHash) settings.set(K.setupTxHash, roles.setupTxHash)
+  commitStep()
   return {
     status,
     profileStatus: profile.status,
@@ -351,10 +437,11 @@ export async function ensureExecutable(): Promise<ExecutableResult> {
       )
       executableId = created.executableId
     } catch (error) {
-      throw new Error(describeThymeError(error))
+      throw new Error(recordStepError('executable', error))
     }
     settings.set(K.executableId, executableId)
     settings.set(K.executableStatus, 'provisioning')
+    commitStep()
     appendAudit({ actor: 'thyme', event: 'thyme.executable_created', details: { executable_id: executableId, profile_id: state.profileId, function_id: env.functionId, trigger: PAYROLL_CRON_TRIGGER } })
   }
 
@@ -362,7 +449,11 @@ export async function ensureExecutable(): Promise<ExecutableResult> {
   try {
     executable = await client.getExecutable(executableId)
   } catch (error) {
-    throw new Error(describeThymeError(error))
+    if (isThymeApiError(error, 'not_found')) {
+      settings.set(K.executableStatus, 'deleted')
+      settings.set(K.executablePausedReason, 'Thyme no longer knows this executable id; reset step 4 to create a new one')
+    }
+    throw new Error(recordStepError('executable', error))
   }
   cacheExecutable(executable)
   if (executable.status === 'provisioning') return executableResult(executable, Boolean(state.webhookUrl), 'Thyme is provisioning the sandbox')
@@ -374,7 +465,7 @@ export async function ensureExecutable(): Promise<ExecutableResult> {
       executable = await client.getExecutable(executableId)
       cacheExecutable(executable)
     } catch (error) {
-      return executableResult(executable, Boolean(state.webhookUrl), describeThymeError(error))
+      return executableResult(executable, Boolean(state.webhookUrl), recordStepError('executable', error))
     }
   }
   if (executable.status !== 'active') return executableResult(executable, Boolean(state.webhookUrl))
@@ -386,11 +477,44 @@ export async function ensureExecutable(): Promise<ExecutableResult> {
       settings.set(K.webhookName, webhook.webhook?.name ?? 'payroll-app')
       appendAudit({ actor: 'thyme', event: 'thyme.webhook_created', details: { executable_id: executableId, webhook_id: webhook.webhook?._id ?? null, name: webhook.webhook?.name ?? 'payroll-app' } })
     } catch (error) {
-      throw new Error(describeThymeError(error))
+      throw new Error(recordStepError('executable', error))
     }
     appendAudit({ actor: 'thyme', event: 'thyme.onboarded', details: { profile_id: state.profileId, executable_id: executableId, safe: state.safeAddress, roles_proxy: state.rolesProxy } })
   }
+  clearStepError()
+  commitStep()
   return executableResult(executable, true)
+}
+
+/** Reset step 4 only: drop the stored executable + webhook so "Create executable" starts from scratch. The profile stays. */
+export function resetExecutable(): void {
+  const state = readOnboardingState()
+  for (const key of [K.executableId, K.executableStatus, K.executablePausedReason, K.webhookUrl, K.webhookName, K.lastExecutionId]) settings.remove(key)
+  if (state.lastError?.step === 'executable') clearStepError()
+  commitStep()
+  appendAudit({ actor: 'owner', event: 'thyme.executable_reset', details: { executable_id: state.executableId, note: 'the executable stays at Thyme; this app no longer uses it' } })
+}
+
+/** Re-read the executable from Thyme and cache its state; throws a readable error (unlike refreshExecutable). */
+export async function resyncExecutable(): Promise<ExecutableResult> {
+  const env = getThymeEnv()
+  const state = readOnboardingState()
+  if (!state.executableId) throw new Error(state.simulatedAt ? 'Simulated onboarding: there is no Thyme executable to read' : 'No Thyme executable yet: finish the onboarding first')
+  if (!env.apiKey) throw new Error('THYME_API_KEY is not set: the executable cannot be read')
+  try {
+    const executable = await getThymeClient(env).getExecutable(state.executableId)
+    cacheExecutable(executable)
+    if (state.lastError?.step === 'executable') clearStepError()
+    commitStep()
+    appendAudit({ actor: 'thyme', event: 'thyme.executable_resynced', details: { executable_id: state.executableId, status: executable.status, paused_reason: executable.pausedReason ?? null } })
+    return executableResult(executable, Boolean(state.webhookUrl))
+  } catch (error) {
+    if (isThymeApiError(error, 'not_found')) {
+      settings.set(K.executableStatus, 'deleted')
+      settings.set(K.executablePausedReason, 'Thyme no longer knows this executable id')
+    }
+    throw new Error(recordStepError('executable', error))
+  }
 }
 
 /** Kill switch: pause or resume the Thyme executable. No-op (applied: false) without a real onboarding. */
@@ -435,6 +559,7 @@ export function simulateOnboarding(safeAddress?: string | null): void {
   const safe = safeAddress && isAddress(safeAddress) ? getAddress(safeAddress) : null
   if (safe) settings.set(K.safeAddress, safe)
   settings.set(K.simulatedAt, new Date().toISOString())
+  commitStep()
   appendAudit({ actor: 'owner', event: 'thyme.onboarding_simulated', details: { safe, note: 'no wallet, no Thyme: payouts are labelled simulated' } })
 }
 
@@ -442,6 +567,7 @@ export function simulateOnboarding(safeAddress?: string | null): void {
 export function forgetOnboarding(): void {
   const state = readOnboardingState()
   for (const key of THYME_OWNED_SETTINGS_KEYS) settings.remove(key)
+  commitStep()
   appendAudit({ actor: 'owner', event: 'thyme.onboarding_forgotten', details: { profile_id: state.profileId, executable_id: state.executableId } })
 }
 

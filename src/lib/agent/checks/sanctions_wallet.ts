@@ -1,13 +1,19 @@
 import { loadEuList, loadSdnList } from '../lists'
-import { type CheckContext, type CheckSpec, makeResult, shortAddr } from './context'
+import { approvedWallets, type CheckContext, type CheckSpec, makeResult, shortAddr } from './context'
 
 const spec = { id: 'sanctions_wallet', label: 'Sanctions: wallet', enforcement: 'agent', weight: 12 } as const
 
 export const run = async (ctx: CheckContext) => {
-  const candidates = [
-    { role: 'on file', addr: ctx.beneficiary?.wallet?.toLowerCase() ?? null },
-    { role: 'printed on invoice', addr: ctx.extracted.payment.wallet },
-  ].filter((c): c is { role: string; addr: string } => !!c.addr)
+  // Screen every approved wallet on file (any of them may receive the payout) and the wallet printed on the invoice.
+  const seen = new Set<string>()
+  const candidates: { role: string; addr: string }[] = []
+  for (const w of approvedWallets(ctx)) {
+    if (seen.has(w.wallet)) continue
+    seen.add(w.wallet)
+    candidates.push({ role: w.isPrimary ? 'on file' : `on file${w.label ? ` (${w.label})` : ''}`, addr: w.wallet })
+  }
+  const printed = ctx.extracted.payment.wallet
+  if (printed && !seen.has(printed)) candidates.push({ role: 'printed on invoice', addr: printed })
   const [sdn, eu] = await Promise.all([loadSdnList(), loadEuList()])
   const source = `OFAC SDN ${sdn.fetchedAt.slice(0, 10)} (${sdn.source}, ${sdn.ethIndex.size} ETH addresses); EU consolidated list remarks ${eu.fileGenerationDate || 'n/a'}`
   if (candidates.length === 0) {

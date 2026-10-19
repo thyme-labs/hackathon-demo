@@ -2,13 +2,25 @@
 // routes and the worker import; pipeline.ts itself stays storage-agnostic for tests.
 //
 //   const { processInvoice } = await import('@/lib/agent/service'); await processInvoice(invoiceId)
-import { appendAudit, beneficiaries, invoices, payouts, settings } from '../store/repos'
+import { readAutoPaySettings } from '../server/autopay'
+import { appendAudit, audit, beneficiaries, beneficiaryWallets, invoices, payouts, settings } from '../store/repos'
 import { approveAndEnqueue, type InvestigationResult, investigate } from './pipeline'
 import type { AgentStore, AllowanceReader, PipelineDeps, ProgressEvent, TypedDataVerifier } from './types'
 import { createWorker, processQueue, type Worker } from './worker'
 
 if (typeof window !== 'undefined') {
   throw new Error('src/lib/agent/service.ts is server-only')
+}
+
+/** details_json of an audit row as an object; {} when null or malformed. */
+const parseDetails = (json: string | null): Record<string, unknown> => {
+  if (!json) return {}
+  try {
+    const v = JSON.parse(json) as unknown
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : { value: v }
+  } catch {
+    return {}
+  }
 }
 
 /** AgentStore over src/lib/store/repos.ts. */
@@ -21,11 +33,18 @@ export const repoStore: AgentStore = {
   nextQueuedInvoice: () => invoices.nextQueued(),
   listBeneficiaries: () => beneficiaries.list(),
   getBeneficiary: (id) => beneficiaries.get(id),
+  listBeneficiaryWallets: (beneficiaryId) => beneficiaryWallets.listByBeneficiary(beneficiaryId),
+  findBeneficiaryByApprovedWallet: (wallet) => {
+    const row = beneficiaryWallets.findApproved(wallet)
+    return row ? beneficiaries.get(row.beneficiary_id) : null
+  },
+  proposeBeneficiaryWallet: (input) => beneficiaryWallets.propose({ ...input, source: 'invoice' }),
   listInvoicesForBeneficiary: (beneficiaryId, excludeInvoiceId) =>
     invoices.list({ beneficiaryId, limit: 1000 }).filter((i) => i.id !== excludeInvoiceId),
   findInvoicesByNumber: (number, excludeInvoiceId) => invoices.byNumber(number, excludeInvoiceId),
   listPayoutsSince: (beneficiaryId, sinceIso) =>
     payouts.list({ limit: 1000 }).filter((p) => p.beneficiary_id === beneficiaryId && p.created_at >= sinceIso),
+  listOpenPayouts: () => payouts.list({ limit: 1000 }).filter((p) => p.status === 'pending' || p.status === 'submitted'),
   createPayout: (payout) => payouts.create(payout),
   appendAudit: (event) =>
     void appendAudit({
@@ -36,6 +55,11 @@ export const repoStore: AgentStore = {
       details: event.details,
     }),
   getSetting: (key) => settings.get(key),
+  listAudit: (beneficiaryId) =>
+    audit
+      .list({ beneficiaryId, limit: 500 })
+      .reverse()
+      .map((row) => ({ ts: row.ts, actor: row.actor, invoice_id: row.invoice_id, beneficiary_id: row.beneficiary_id, event: row.event, details: parseDetails(row.details_json) })),
 }
 
 export interface ServiceOptions {
@@ -53,11 +77,18 @@ export const configureAgentService = (next: ServiceOptions): void => {
   Object.assign(options, next)
 }
 
+/** Auto-pay threshold and switch from the settings table (owner-editable), env AUTO_PAY_THRESHOLD as fallback. */
+const autoPay = (): Pick<PipelineDeps, 'autoPayThreshold' | 'autoPayEnabled'> => {
+  const s = readAutoPaySettings()
+  return { autoPayThreshold: s.threshold, autoPayEnabled: s.enabled }
+}
+
 const deps = (): PipelineDeps => ({
   store: repoStore,
   readAllowance: options.readAllowance,
   verifier: options.verifier,
   onProgress: options.onProgress,
+  ...autoPay(),
 })
 
 /** Investigate one invoice now (used right after upload). Safe to call for an already-queued id. */

@@ -1,4 +1,4 @@
-// Row types mirror src/lib/store/schema.sql one-to-one. JSON columns stay as strings; parse at the edge.
+// Row types mirror src/lib/store/schema.sql (+ migrations) one-to-one. JSON columns stay as strings; parse at the edge.
 
 export type BeneficiaryType = 'person' | 'company'
 export type BeneficiaryStatus = 'new' | 'active' | 'paused' | 'blocked'
@@ -17,6 +17,10 @@ export type PayoutExecutor = 'thyme' | 'direct'
 export type AgentKind = 'compliance' | 'payment'
 export type AgentStatus = 'running' | 'paused'
 export type AuditActor = 'agent' | 'owner' | 'thyme' | 'chain'
+/** pending = seen (on an invoice or added by hand) but never paid; approved = may be paid; revoked = never paid again. */
+export type BeneficiaryWalletStatus = 'pending' | 'approved' | 'revoked'
+/** registration = the wallet the owner registered; invoice = printed on an invoice of a known payee; manual = added on the Beneficiaries page. */
+export type BeneficiaryWalletSource = 'registration' | 'invoice' | 'manual'
 
 export interface Beneficiary {
   id: string
@@ -24,6 +28,7 @@ export interface Beneficiary {
   type: BeneficiaryType
   country: string | null
   tax_id: string | null
+  /** The PRIMARY approved wallet (mirrors the beneficiary_wallets row with is_primary = 1). */
   wallet: string | null
   email: string | null
   lei: string | null
@@ -34,6 +39,22 @@ export interface Beneficiary {
   total_paid_eur: number
   last_paid_at: string | null
   ownership_proof_json: string | null
+  created_at: string
+}
+
+/** One wallet of a beneficiary (migration 004). Lower-case address; (beneficiary_id, wallet) is unique. */
+export interface BeneficiaryWallet {
+  id: string
+  beneficiary_id: string
+  wallet: string
+  label: string | null
+  status: BeneficiaryWalletStatus
+  /** 1 on the wallet mirrored into beneficiaries.wallet (always an approved one). */
+  is_primary: number
+  ownership_proof_json: string | null
+  source: BeneficiaryWalletSource
+  approved_by: string | null
+  approved_at: string | null
   created_at: string
 }
 
@@ -59,6 +80,10 @@ export interface Invoice {
   decision_text: string | null
   created_at: string
   updated_at: string
+  /** 1 while the owner approved the invoice but has not released the payout ("Approve" without "send"). */
+  hold: number
+  /** 1 when the owner paid despite failed checks ("Send anyway"); audit event owner.override has the reason. */
+  override: number
 }
 
 export interface Payout {
@@ -85,6 +110,12 @@ export interface Payout {
   /** 1 when no chain transaction was sent (mock mode); tx_hash is then a labelled placeholder. */
   simulated: number
   effective_gas_price_wei: string | null
+  /** Idempotency-Key suffix at Thyme (payout-<invoiceId>-<attempt>); a retry bumps it. */
+  attempt: number
+  /** 1 when the owner sent this payout despite failed checks ("Send anyway"). */
+  override: number
+  /** The approved wallet this payout was handed to the rail for (set when the payment agent picks it up). */
+  to_wallet: string | null
 }
 
 export interface Agent {

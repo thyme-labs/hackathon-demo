@@ -3,13 +3,14 @@
 // The LLM is untrusted: the recipient wallet always comes from the beneficiary registry.
 import { readFileSync } from 'node:fs'
 import { parseUnits } from 'viem'
-import { CHECKS, type CheckContext, type LlmCallRecord } from './checks'
+import { CHECKS, type CheckContext, type LlmCallRecord, type MatchedBy } from './checks'
 import { agentEnv } from './env'
 import { explainDecision } from './explain'
 import { ExtractedInvoice, extractInvoice } from './extract'
 import { czkLeg } from './fx'
 import { listVersions } from './lists'
 import { matchBeneficiary } from './match'
+import { type PayeeTypeResolution, resolvePayeeType } from './payee-type'
 import { getLlmProvider } from './providers'
 import { computeScore, decideStatus, suggestMonthlyLimit } from './score'
 import type {
@@ -68,14 +69,23 @@ const loadExtraction = async (
     actor: 'agent',
     invoice_id: invoice.id,
     event: 'invoice.extracted',
-    details: { model: outcome.modelId, cost_usd: outcome.costUsd, latency_ms: outcome.latencyMs, confidence: outcome.invoice.confidence, number: outcome.invoice.invoice.number },
+    details: {
+      model: outcome.modelId,
+      cost_usd: outcome.costUsd,
+      latency_ms: outcome.latencyMs,
+      confidence: outcome.invoice.confidence,
+      number: outcome.invoice.invoice.number,
+      payee_type: outcome.invoice.payee.type ?? null,
+      suspicious_text: outcome.invoice.suspicious_text.length,
+      disclaimers_dropped: outcome.disclaimersDropped,
+    },
   })
   return outcome.invoice
 }
 
-const proposalFor = (extracted: ExtractedInvoice, amountEur: number | null): BeneficiaryProposal => ({
+const proposalFor = (extracted: ExtractedInvoice, amountEur: number | null, payeeType: PayeeTypeResolution): BeneficiaryProposal => ({
   name: extracted.payee.name,
-  type: extracted.payee.lei ? 'company' : /\b(ltd|limited|llc|gmbh|s\.?r\.?o|inc|plc|oü|d\.?o\.?o)\b/i.test(extracted.payee.name) ? 'company' : 'person',
+  type: payeeType.type,
   country: extracted.payee.country,
   tax_id: extracted.payee.tax_id,
   wallet: extracted.payment.wallet,
@@ -158,12 +168,26 @@ export const investigate = async (invoiceId: string, deps: PipelineDeps): Promis
       payee_wallet: extracted.payment.wallet,
     })
 
-    const { beneficiary, matchedBy } = matchBeneficiary(extracted, store.listBeneficiaries())
+    // Registry match: tax id, primary wallet, name (match.ts); then any other APPROVED wallet of a beneficiary.
+    const match = matchBeneficiary(extracted, store.listBeneficiaries())
+    const viaApprovedWallet = !match.beneficiary && extracted.payment.wallet ? (store.findBeneficiaryByApprovedWallet?.(extracted.payment.wallet) ?? null) : null
+    const beneficiary = match.beneficiary ?? viaApprovedWallet
+    const matchedBy: MatchedBy = match.beneficiary ? match.matchedBy : viaApprovedWallet ? 'wallet' : null
+    // All wallet rows of the payee: wallet_matches_file passes on any approved one and proposes unknown ones as pending.
+    const wallets = beneficiary ? (store.listBeneficiaryWallets?.(beneficiary.id) ?? []) : []
+    const payeeType = resolvePayeeType(extracted, beneficiary)
     deps.onProgress?.({ type: 'matched', invoiceId, beneficiaryId: beneficiary?.id ?? null })
     persist({ beneficiary_id: beneficiary?.id ?? null })
+    store.appendAudit({
+      actor: 'agent',
+      invoice_id: invoiceId,
+      beneficiary_id: beneficiary?.id ?? null,
+      event: 'invoice.matched',
+      details: { matched_by: matchedBy, payee_type: payeeType.type, payee_type_source: payeeType.source, reason: payeeType.reason, approved_wallets: wallets.filter((w) => w.status === 'approved').length },
+    })
 
     const invoice = store.getInvoice(invoiceId) ?? initial
-    const ctx: CheckContext = { invoice, extracted, beneficiary, matchedBy, store, deps, provider, now: now(), out: {}, llmCalls }
+    const ctx: CheckContext = { invoice, extracted, beneficiary, matchedBy, wallets, payeeType, store, deps, provider, now: now(), out: {}, llmCalls }
     const results: CheckResult[] = []
     for (const check of CHECKS) {
       deps.onProgress?.({ type: 'check_started', invoiceId, checkId: check.id })
@@ -198,7 +222,7 @@ export const investigate = async (invoiceId: string, deps: PipelineDeps): Promis
     }
 
     const summary = computeScore(results)
-    const decision = decideStatus(summary, beneficiary, threshold)
+    const decision = decideStatus(summary, beneficiary, threshold, { autoPayEnabled: deps.autoPayEnabled })
     const amountEur = ctx.out.amountEur ?? (extracted.invoice.currency === 'EUR' ? extracted.invoice.gross : null)
     const explanation = await explainDecision({ extracted, beneficiary, results, score: summary.score, decision, amountEur }, provider)
     if (explanation.modelId !== 'none') {
@@ -207,9 +231,10 @@ export const investigate = async (invoiceId: string, deps: PipelineDeps): Promis
     snapshot = {
       ...snapshot,
       score: summary.score,
+      scoring: summary.scoring,
       finished_at: now().toISOString(),
       llm: llmSummary(provider.name, llmCalls),
-      ...(beneficiary ? {} : { proposal: proposalFor(extracted, amountEur) }),
+      ...(beneficiary ? {} : { proposal: proposalFor(extracted, amountEur, payeeType) }),
     }
     persist({ status: decision, score: summary.score, decision_text: explanation.text })
     deps.onProgress?.({ type: 'decided', invoiceId, decision, score: summary.score })

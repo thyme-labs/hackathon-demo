@@ -1,54 +1,37 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { LoaderCircle, Upload } from 'lucide-react'
-import { type ChangeEvent, useRef } from 'react'
-import { toast } from 'sonner'
+import { FlaskConical, Plus, Upload } from 'lucide-react'
+import { useState } from 'react'
+import { UploadDialog, type UploadTab } from '@/components/invoices/UploadDialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 
-async function uploadPdf(file: File): Promise<{ id: string }> {
-  const form = new FormData()
-  form.append('file', file)
-  const res = await fetch('/api/invoices/upload', { method: 'POST', body: form })
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(body.error ?? `upload failed (${res.status})`)
-  }
-  return (await res.json()) as { id: string }
+interface UploadButtonProps {
+  /** Button text. */
+  label?: string
+  icon?: 'upload' | 'plus' | 'flask'
+  variant?: 'default' | 'secondary' | 'ghost'
+  /** Tab the dialog opens on. */
+  tab?: UploadTab
+  className?: string
 }
 
-/** "Upload PDF" button: posts to /api/invoices/upload and selects the new invoice. */
-export function UploadButton() {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const upload = useMutation({
-    mutationFn: uploadPdf,
-    onSuccess: async ({ id }) => {
-      await queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      await navigate({ to: '/invoices', search: { id } })
-      toast.success('Invoice queued')
-    },
-    onError: (error) => toast.error(error.message),
-  })
+const ICONS = { upload: Upload, plus: Plus, flask: FlaskConical } as const
 
-  function handlePick() {
-    inputRef.current?.click()
-  }
+/** Opens the upload dialog (drag-and-drop PDFs or demo invoices). Used on /invoices and as "New invoice" on the dashboard. */
+export function UploadButton({ label = 'Upload', icon = 'upload', variant = 'secondary', tab = 'upload', className }: UploadButtonProps) {
+  const [open, setOpen] = useState(false)
+  const Icon = ICONS[icon]
 
-  function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (file) upload.mutate(file)
+  function handleOpen() {
+    setOpen(true)
   }
 
   return (
     <>
-      <Input ref={inputRef} type="file" accept="application/pdf" className="hidden" onChange={handleChange} aria-label="Invoice PDF" />
-      <Button variant="secondary" onClick={handlePick} disabled={upload.isPending}>
-        {upload.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : <Upload aria-hidden />}
-        Upload
+      <Button variant={variant} onClick={handleOpen} className={cn(variant === 'ghost' && 'text-dim', className)}>
+        <Icon aria-hidden />
+        {label}
       </Button>
+      {open ? <UploadDialog open={open} onOpenChange={setOpen} defaultTab={tab} /> : null}
     </>
   )
 }

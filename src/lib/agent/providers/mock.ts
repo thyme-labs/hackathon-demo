@@ -17,13 +17,17 @@ export interface DemoPayee {
   email: string | null
   lei: string | null
   website: string | null
-  monthly_limit_eur: number
-  currency: string
+  /** Registered payees only; the unregistered ones (new-payee scenarios) carry no limit. */
+  monthly_limit_eur?: number
+  currency?: string
   address: string
   footprint: { exists: boolean; matches_country: boolean; fraud_reports: boolean; summary: string }
 }
 
-const payees = demoPayees as unknown as { payees: DemoPayee[] }
+// `payees` are the registered beneficiaries; `unregistered_payees` only appear on scenario invoices
+// (sanctioned wallet/name, high-risk countries, IBAN-only). Both have a scripted public footprint.
+const payees = demoPayees as unknown as { payees: DemoPayee[]; unregistered_payees?: DemoPayee[] }
+const corpus = (): DemoPayee[] => [...payees.payees, ...(payees.unregistered_payees ?? [])]
 
 const MOCK_MODEL_IDS = { extract: 'mock/extract', reason: 'mock/reason' } as const
 
@@ -36,7 +40,7 @@ const normalise = (s: string): string =>
 
 export const findDemoPayeeByName = (name: string): DemoPayee | undefined => {
   const n = normalise(name)
-  return payees.payees.find((p) => normalise(p.name) === n || normalise(p.printed_name) === n)
+  return corpus().find((p) => normalise(p.name) === n || normalise(p.printed_name) === n)
 }
 
 const readPdfSubject = async (bytes: Uint8Array): Promise<string | null> => {

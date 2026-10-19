@@ -1,6 +1,7 @@
 // Process-wide boot: seed the two agents, plug the chain readers into the agent service and start the
 // in-process loops (compliance queue + payment agent). Guarded on globalThis so SSR, dev HMR and the
 // Nitro worker only ever run one set of timers.
+import { CHECKS } from '../agent/checks'
 import { serverEnv } from '../env'
 import { agents } from '../store/repos'
 
@@ -36,7 +37,7 @@ export function seedAgents(): void {
     name: 'Compliance agent',
     kind: 'compliance',
     status: existingCompliance?.status ?? 'running',
-    config_json: JSON.stringify({ provider, models, auto_pay_threshold: serverEnv.autoPayThreshold(), checks: 12 }),
+    config_json: JSON.stringify({ provider, models, auto_pay_threshold: serverEnv.autoPayThreshold(), checks: CHECKS.length }),
   })
   const existingPayment = agents.get(AGENT_IDS.payment)
   agents.upsert({

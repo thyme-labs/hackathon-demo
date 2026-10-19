@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import type { AgentView } from './dto'
+import type { AgentView, ExecutableResult } from './dto'
 
 export const listAgents = createServerFn({ method: 'GET', strict: false }).handler(async (): Promise<AgentView[]> => {
   const { ensureBooted } = await import('./boot')
@@ -9,6 +9,9 @@ export const listAgents = createServerFn({ method: 'GET', strict: false }).handl
   const { serverEnv } = await import('../env')
   const { resolveExecutionMode } = await import('../payments/runner')
   const { buildOnboardingView } = await import('./thymeOnboarding')
+  const { readAutoPaySettings } = await import('./autopay')
+  const autoPaySettings = readAutoPaySettings()
+  const autoPay = { threshold: autoPaySettings.threshold, enabled: autoPaySettings.enabled }
 
   let cost = 0
   let calls = 0
@@ -60,6 +63,7 @@ export const listAgents = createServerFn({ method: 'GET', strict: false }).handl
       payees: active.length,
       limit_eur: limit,
       used_eur: used,
+      autoPay,
     }
   })
 })
@@ -85,9 +89,28 @@ export const toggleAgent = createServerFn({ method: 'POST' })
     return { id: agent.id, status: next, thyme }
   })
 
-/** Re-read the executable status from Thyme (agents page refresh). */
-export const refreshThymeExecutable = createServerFn({ method: 'POST' }).handler(async (): Promise<{ status: string | null; pausedReason: string | null }> => {
-  const { refreshExecutable } = await import('./thymeOnboarding')
-  const executable = await refreshExecutable()
-  return { status: executable?.status ?? null, pausedReason: executable?.pausedReason ?? null }
+/** "Re-sync executable": re-read the executable status from Thyme; throws a readable error (code, requestId) on failure. */
+export const refreshThymeExecutable = createServerFn({ method: 'POST' }).handler(async (): Promise<ExecutableResult> => {
+  const { resyncExecutable } = await import('./thymeOnboarding')
+  return resyncExecutable()
+})
+
+export interface RunPaymentAgentResult {
+  /** Payouts the agent handled in this pass. */
+  handled: number
+  /** Pending payouts left for the next pass (e.g. recently handed to Thyme). */
+  pending: number
+  paused: boolean
+}
+
+/** "Run payment agent now": one pass of runPaymentsOnce (respects the pause switch and the lock). Safe to click twice. */
+export const runPaymentAgentNow = createServerFn({ method: 'POST' }).handler(async (): Promise<RunPaymentAgentResult> => {
+  const { ensureBooted } = await import('./boot')
+  ensureBooted()
+  const { agents, payouts } = await import('../store/repos')
+  const { runPaymentsOnce } = await import('../payments/runner')
+  const agent = agents.get('payment')
+  const paused = Boolean(agent && agent.status !== 'running')
+  const handled = paused ? 0 : await runPaymentsOnce()
+  return { handled, pending: payouts.list({ status: 'pending', limit: 100 }).length, paused }
 })

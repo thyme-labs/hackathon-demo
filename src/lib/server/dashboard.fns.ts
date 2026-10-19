@@ -12,8 +12,10 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
   const { buildOnboardingView } = await import('./thymeOnboarding')
   const { agentEnv } = await import('../agent/env')
   const { buildComparisonCard } = await import('../reports/comparison')
+  const { readAutoPaySettings, autoPayChipLabel } = await import('./autopay')
 
   const all = settings.all()
+  const autoPay = readAutoPaySettings()
   const safeAddress = all.safeAddress ?? null
   const onboarding = buildOnboardingView()
   const counts = dashboardCounts()
@@ -57,8 +59,15 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
     const txHash = typeof details.tx_hash === 'string' ? details.tx_hash : null
     const simulated = details.simulated === true
     const amount = typeof details.amount_eur === 'number' ? details.amount_eur : (invoice?.amount_eur ?? null)
-    const base = { id: String(e.id), ts: e.ts, tx_hash: txHash, simulated, invoice_id: e.invoice_id }
+    const onHold = Boolean(invoice && invoice.status === 'approved' && invoice.hold === 1)
+    const base = { id: String(e.id), ts: e.ts, tx_hash: txHash, simulated, invoice_id: e.invoice_id, hold: false }
     switch (e.event) {
+      case 'invoice.approved_hold':
+        activity.push({ ...base, kind: 'held', hold: onHold, text: `Approved${onHold ? ' · on hold' : ''} · ${who} · ${invoice?.number ?? ''}`, amount_eur: amount })
+        break
+      case 'owner.override':
+        activity.push({ ...base, kind: 'overridden', text: `Sent despite failed checks · ${who} · ${invoice?.number ?? ''}`, amount_eur: amount })
+        break
       case 'payout.confirmed':
         activity.push({ ...base, kind: 'paid', text: `Paid ${who} · ${invoice?.number ?? ''}`.trim(), amount_eur: amount })
         break
@@ -137,7 +146,7 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
               { variant: 'agent' as const, label: 'sanctions' },
               { variant: 'agent' as const, label: 'wallet on file' },
               { variant: 'agent' as const, label: 'issuer backing' },
-              { variant: 'agent' as const, label: `auto-pay ≥ ${serverEnv.autoPayThreshold()}` },
+              { variant: 'agent' as const, label: autoPayChipLabel(autoPay) },
             ],
     })),
     activity,

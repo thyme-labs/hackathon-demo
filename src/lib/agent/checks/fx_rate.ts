@@ -3,9 +3,30 @@ import { type CheckContext, type CheckSpec, eur, makeResult } from './context'
 
 const spec = { id: 'fx_rate', label: 'FX rate', enforcement: 'agent', weight: 5 } as const
 
+/**
+ * Stablecoin and crypto tickers an invoice may be denominated in. They are not fiat: no ECB/CNB reference
+ * rate, no VAT base, and a rate provider that happens to quote them (Tatum does) must not turn a USDT
+ * invoice into an EURC payout. Anything that is not a three-letter ISO 4217 code is refused as well.
+ */
+const NON_FIAT_TICKERS = new Set([
+  'USDT', 'USDC', 'EURC', 'EURT', 'EURS', 'EUROC', 'EURE', 'AGEUR', 'DAI', 'PYUSD', 'USDE', 'FDUSD', 'TUSD', 'BUSD', 'USDP', 'GUSD',
+  'BTC', 'XBT', 'WBTC', 'ETH', 'WETH', 'BNB', 'SOL', 'XRP', 'TRX', 'POL', 'MATIC', 'AVAX', 'LTC', 'DOGE', 'ADA', 'DOT',
+])
+
+export const isFiatCode = (code: string): boolean => /^[A-Z]{3}$/.test(code) && !NON_FIAT_TICKERS.has(code)
+
 export const run = async (ctx: CheckContext) => {
   const inv = ctx.extracted.invoice
   const currency = inv.currency
+  if (!isFiatCode(currency)) {
+    const why = NON_FIAT_TICKERS.has(currency) ? 'a stablecoin/crypto ticker' : `a ${currency.length}-letter code`
+    return makeResult(spec, ctx, {
+      status: 'fail',
+      evidence: `Invoice is denominated in ${currency}, ${why}, not a fiat ISO 4217 currency. No EUR reference rate exists for it, so the EURC amount and the CZK accounting leg cannot be derived; ask for an invoice in a fiat currency (EUR, USD, GBP, ...).`,
+      source: 'ISO 4217 code check (before Tatum / Frankfurter / static table)',
+      data: { currency, unsupported: true },
+    })
+  }
   const [fx, cnb] = await Promise.all([resolveEurRate(currency), fetchCnbRate('EUR', ctx.now.toISOString().slice(0, 10))])
   ctx.out.cnb = cnb
   const cnbNote = cnb

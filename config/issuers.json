@@ -13,6 +13,13 @@
       ],
       "issuer_lei": "969500OYUDADGZKCR583",
       "testnet_note": "Ethereum Sepolia EURC 0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4 is a Circle testnet contract with no DTI; the demo maps it to the mainnet token identity above and says so.",
+      "sepolia_admin": {
+        "$comment": "Issuer admin roles of the Sepolia EURC contract (blacklister(), owner(), masterMinter()) as read via public RPC; the eurc_blacklist check warns when they change.",
+        "blacklister": "0xF9D66FAa2F5d99C0D1E5b643d142Bf4cb8F5e94C",
+        "owner": "0xfD628758334De0E69E669E2eA61e5FA6bE6d3061",
+        "master_minter": "0x2e3467bbD995a32b85DCA51c58Bd23f5a96C2Ff2",
+        "as_of": "2026-10-19"
+      },
       "supply_sources": [
         {
           "chain": "ethereum",

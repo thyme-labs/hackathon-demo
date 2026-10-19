@@ -9,9 +9,9 @@ export const run = async (ctx: CheckContext) => {
     const p = ctx.extracted.payee
     return makeResult(spec, ctx, {
       status: 'warn',
-      evidence: `New payee: "${p.name}" (${p.country || 'country n/a'}, tax id ${p.tax_id ?? 'n/a'}) is not in the registry. Owner approval registers the wallet and a monthly limit.`,
+      evidence: `New payee: "${p.name}" (${ctx.payeeType.type}, ${p.country || 'country n/a'}, tax id ${p.tax_id ?? 'n/a'}) is not in the registry. Owner approval registers the wallet and a monthly limit.`,
       source,
-      data: { matched: false },
+      data: { matched: false, payee_type: ctx.payeeType.type, payee_type_source: ctx.payeeType.source },
     })
   }
   const history = `paid ${eur(b.total_paid_eur)} to date, trust ${b.trust_score}/100`

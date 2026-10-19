@@ -1,6 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
 import type { Beneficiary } from '../store/types'
+import type { ApproveWalletResult, BeneficiaryWalletView } from './beneficiaryWallets'
 import type { BeneficiaryDetail, BeneficiaryListItem } from './dto'
+
+/** BeneficiaryDetail plus the wallet rows (beneficiary_wallets): primary first, then approved, pending, revoked. */
+export interface BeneficiaryDetailWithWallets extends BeneficiaryDetail {
+  wallets: BeneficiaryWalletView[]
+}
 
 export const listBeneficiaries = createServerFn({ method: 'GET' }).handler(async (): Promise<BeneficiaryListItem[]> => {
   const { beneficiaries, payouts, invoices } = await import('../store/repos')
@@ -14,9 +20,10 @@ export const listBeneficiaries = createServerFn({ method: 'GET' }).handler(async
 
 export const getBeneficiary = createServerFn({ method: 'GET', strict: false })
   .validator((input: { id: string }) => input)
-  .handler(async ({ data }): Promise<BeneficiaryDetail | null> => {
+  .handler(async ({ data }): Promise<BeneficiaryDetailWithWallets | null> => {
     const { beneficiaries, payouts, invoices } = await import('../store/repos')
     const { parseChecklist } = await import('../agent/checklist')
+    const { listWallets } = await import('./beneficiaryWallets')
     const b = beneficiaries.get(data.id)
     if (!b) return null
     const rows = invoices.list({ beneficiaryId: b.id, limit: 100 })
@@ -39,6 +46,7 @@ export const getBeneficiary = createServerFn({ method: 'GET', strict: false })
       payouts: payouts.list({ limit: 500 }).filter((p) => p.beneficiary_id === b.id),
       lastChecklist: latest ? parseChecklist(latest.checklist_json) : null,
       paid_this_month_eur: beneficiaries.paidThisMonthEur(b.id),
+      wallets: listWallets(b.id),
     }
   })
 
@@ -51,4 +59,51 @@ export const setBeneficiaryStatus = createServerFn({ method: 'POST' })
     const after = beneficiaries.update(data.id, { status: data.status }) as Beneficiary
     appendAudit({ actor: 'owner', event: `beneficiary.${data.status}`, beneficiaryId: data.id, details: { from: before.status, to: data.status } })
     return after
+  })
+
+// ── Wallets (several per beneficiary; only approved ones are ever paid) ──────────────────────────
+
+export const listBeneficiaryWallets = createServerFn({ method: 'GET', strict: false })
+  .validator((input: { beneficiaryId: string }) => input)
+  .handler(async ({ data }): Promise<BeneficiaryWalletView[]> => {
+    const { listWallets } = await import('./beneficiaryWallets')
+    return listWallets(data.beneficiaryId)
+  })
+
+/** Adds a wallet as 'pending'; the owner approves it in a second, explicit step. */
+export const addBeneficiaryWallet = createServerFn({ method: 'POST' })
+  .validator((input: { beneficiaryId: string; wallet: string; label?: string | null }) => input)
+  .handler(async ({ data }): Promise<BeneficiaryWalletView> => {
+    const { addWallet } = await import('./beneficiaryWallets')
+    return addWallet(data)
+  })
+
+/** Owner action (audit owner.wallet_approved): the wallet may be paid; invoices stopped on it are re-run. */
+export const approveBeneficiaryWallet = createServerFn({ method: 'POST' })
+  .validator((input: { walletId: string }) => input)
+  .handler(async ({ data }): Promise<ApproveWalletResult> => {
+    const { approveWallet } = await import('./beneficiaryWallets')
+    return approveWallet({ walletId: data.walletId, approvedBy: 'owner' })
+  })
+
+export const revokeBeneficiaryWallet = createServerFn({ method: 'POST' })
+  .validator((input: { walletId: string; reason?: string | null }) => input)
+  .handler(async ({ data }): Promise<BeneficiaryWalletView> => {
+    const { revokeWallet } = await import('./beneficiaryWallets')
+    return revokeWallet(data)
+  })
+
+export const setPrimaryBeneficiaryWallet = createServerFn({ method: 'POST' })
+  .validator((input: { walletId: string }) => input)
+  .handler(async ({ data }): Promise<BeneficiaryWalletView> => {
+    const { setPrimary } = await import('./beneficiaryWallets')
+    return setPrimary(data)
+  })
+
+/** Invoice action card: approve the pending wallet printed on this invoice and re-run its checks. */
+export const approveInvoiceWallet = createServerFn({ method: 'POST' })
+  .validator((input: { invoiceId: string }) => input)
+  .handler(async ({ data }): Promise<ApproveWalletResult> => {
+    const { approvePendingWalletForInvoice } = await import('./beneficiaryWallets')
+    return approvePendingWalletForInvoice(data.invoiceId, 'owner')
   })

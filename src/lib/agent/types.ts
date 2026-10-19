@@ -37,6 +37,26 @@ export interface BeneficiaryRow {
   created_at: string
 }
 
+export type BeneficiaryWalletStatus = 'pending' | 'approved' | 'revoked'
+export type BeneficiaryWalletSource = 'registration' | 'invoice' | 'manual'
+
+/** One wallet of a beneficiary (beneficiary_wallets). Only 'approved' rows may receive a payout. */
+export interface BeneficiaryWalletRow {
+  id: string
+  beneficiary_id: string
+  /** Lower-case address. */
+  wallet: string
+  label: string | null
+  status: BeneficiaryWalletStatus
+  /** 1 on the wallet mirrored into beneficiaries.wallet. */
+  is_primary: number
+  ownership_proof_json: string | null
+  source: BeneficiaryWalletSource
+  approved_by: string | null
+  approved_at: string | null
+  created_at: string
+}
+
 export interface InvoiceRow {
   id: string
   beneficiary_id: string | null
@@ -108,6 +128,16 @@ export interface AuditEvent {
   details?: Record<string, unknown>
 }
 
+/** One audit_log row as the checks read it: details_json already parsed (empty object when null or invalid). */
+export interface AuditRow {
+  ts: string
+  actor: AuditActor
+  invoice_id: string | null
+  beneficiary_id: string | null
+  event: string
+  details: Record<string, unknown>
+}
+
 /** Minimal store surface the agent needs. Implemented by src/lib/store/repos.ts. */
 export interface AgentStore {
   getInvoice(id: string): InvoiceRow | null
@@ -116,15 +146,25 @@ export interface AgentStore {
   nextQueuedInvoice(): InvoiceRow | null
   listBeneficiaries(): BeneficiaryRow[]
   getBeneficiary(id: string): BeneficiaryRow | null
+  /** Every wallet row of a beneficiary (approved, pending, revoked). Optional: stores without the table fall back to beneficiary.wallet. */
+  listBeneficiaryWallets?(beneficiaryId: string): BeneficiaryWalletRow[]
+  /** Beneficiary owning this wallet as an APPROVED (possibly secondary) wallet, for the registry match. */
+  findBeneficiaryByApprovedWallet?(wallet: string): BeneficiaryRow | null
+  /** Records a wallet printed on an invoice of a known payee as 'pending' owner approval; idempotent per (beneficiary, wallet). */
+  proposeBeneficiaryWallet?(input: { beneficiaryId: string; wallet: string; label?: string | null }): { wallet: BeneficiaryWalletRow; created: boolean }
   /** All invoices for a beneficiary except the one given (history for anomaly and duplicate checks). */
   listInvoicesForBeneficiary(beneficiaryId: string, excludeInvoiceId?: string): InvoiceRow[]
   /** Any invoice with this number (any beneficiary) except the one given. */
   findInvoicesByNumber(number: string, excludeInvoiceId?: string): InvoiceRow[]
   /** Confirmed or in-flight payouts for a beneficiary since the given ISO timestamp. */
   listPayoutsSince(beneficiaryId: string, sinceIso: string): PayoutRow[]
+  /** Payouts still to leave the Safe (pending or submitted), any beneficiary. Optional: stores without it read as none. */
+  listOpenPayouts?(): PayoutRow[]
   createPayout(payout: NewPayout): PayoutRow
   appendAudit(event: AuditEvent): void
   getSetting(key: string): string | null
+  /** Audit events of a beneficiary, oldest first, details parsed (payee_detail_change). */
+  listAudit(beneficiaryId: string): AuditRow[]
 }
 
 /** Live on-chain allowance for a beneficiary, read from the Roles modifier (allowances(key)). */
@@ -169,6 +209,14 @@ export type CheckId =
   | 'issuer_backing'
   | 'budget'
   | 'ownership_proof'
+  | 'payment_pattern'
+  | 'payee_detail_change'
+  | 'travel_rule_readiness'
+  | 'pep_screening'
+  | 'pdf_forensics'
+  | 'eurc_blacklist'
+  | 'safe_roles_health'
+  | 'transfer_preflight'
 
 export interface CheckResult {
   id: CheckId
@@ -209,10 +257,52 @@ export interface BeneficiaryProposal {
   suggested_limit_eur: number
 }
 
+/** How bad a finding on a check is; multiplies the weight into a penalty (severity.ts). */
+export type CheckTier = 'critical' | 'high' | 'medium' | 'low'
+
+export interface ScoreBreakdownEntry {
+  id: CheckId
+  label: string
+  tier: CheckTier
+  weight: number
+  /** Status as scored: a critical/high check skipped for missing data is scored as warn. */
+  status: CheckStatus
+  /** Points deducted before scaling (weight x tier multiplier); 0 for pass and skip. */
+  penalty: number
+  note: string
+}
+
+export interface ScoreCapApplied {
+  rule: 'critical_fail' | 'high_fail' | 'critical_warns'
+  cap: number
+  checks: CheckId[]
+  reason: string
+}
+
+/** Why the score is what it is; persisted as ChecklistSnapshot.scoring (score.ts, severity.ts). */
+export interface ScoringSnapshot {
+  model: 'tiered-v1'
+  score: number
+  /** Score before caps. */
+  raw_score: number
+  /** Summed penalty points. */
+  penalty: number
+  /** Summed weight of the counted (non-skipped) checks. */
+  total: number
+  /** Binding cap, or null when none applied. */
+  cap: number | null
+  caps: ScoreCapApplied[]
+  breakdown: ScoreBreakdownEntry[]
+  /** One line, e.g. "Capped at 10: Wallet matches file failed (critical)." */
+  explanation: string
+}
+
 export interface ChecklistSnapshot {
   entries: ChecklistEntry[]
   proposal?: BeneficiaryProposal
   score: number | null
+  /** Why the score is what it is (tiers, penalties, caps). Absent on runs older than the tiered model. */
+  scoring?: ScoringSnapshot
   started_at: string
   finished_at: string | null
   list_versions: Record<string, string>
@@ -237,6 +327,8 @@ export interface PipelineDeps {
   onProgress?: (event: ProgressEvent) => void
   /** Override the auto-pay threshold (defaults to env AUTO_PAY_THRESHOLD or 100). */
   autoPayThreshold?: number
+  /** False: a clean invoice of an active payee is held for the owner instead of being approved (default true). */
+  autoPayEnabled?: boolean
   /** Override 'now' for deterministic runs. */
   now?: () => Date
 }

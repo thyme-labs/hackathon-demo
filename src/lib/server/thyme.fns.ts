@@ -1,7 +1,7 @@
 // Server functions for the Thyme onboarding (Safe -> Roles profile -> executable -> webhook).
 // Handlers dynamic-import the server-only module so this file can be imported from client components.
 import { createServerFn } from '@tanstack/react-start'
-import type { ConfirmSetupResult, ExecutableResult, PrepareProfileResult, ProfileStatusResult, ThymeOnboardingView } from './dto'
+import type { ConfirmSetupResult, ExecutableResult, OnboardingStep, PrepareProfileResult, ProfileStatusResult, ThymeOnboardingView } from './dto'
 
 export const getThymeOnboarding = createServerFn({ method: 'GET' }).handler(async (): Promise<ThymeOnboardingView> => {
   const { ensureBooted } = await import('./boot')
@@ -36,6 +36,17 @@ export const confirmThymeSetup = createServerFn({ method: 'POST' })
     return confirmSetup(data)
   })
 
+/**
+ * Step 3: the wallet returned a hash. Stored before the receipt exists so a reload during mining resumes at
+ * the confirm step; also used for "I already sent it: here is the hash". Idempotent on the same hash.
+ */
+export const recordThymeSetupTx = createServerFn({ method: 'POST' })
+  .validator((input: ConfirmSetupInput) => input)
+  .handler(async ({ data }): Promise<{ txHash: string; step: OnboardingStep }> => {
+    const { recordSetupTx } = await import('./thymeOnboarding')
+    return recordSetupTx(data)
+  })
+
 export const refreshThymeProfile = createServerFn({ method: 'POST' })
   .validator((input: { profileId: string }) => input)
   .handler(async ({ data }): Promise<ProfileStatusResult> => {
@@ -47,6 +58,19 @@ export const refreshThymeProfile = createServerFn({ method: 'POST' })
 export const ensureThymeExecutable = createServerFn({ method: 'POST' }).handler(async (): Promise<ExecutableResult> => {
   const { ensureExecutable } = await import('./thymeOnboarding')
   return ensureExecutable()
+})
+
+/** Step 4 retry helper: re-read the executable from Thyme; throws a readable error with code and requestId. */
+export const resyncThymeExecutable = createServerFn({ method: 'POST' }).handler(async (): Promise<ExecutableResult> => {
+  const { resyncExecutable } = await import('./thymeOnboarding')
+  return resyncExecutable()
+})
+
+/** Step 4 reset: forget the executable + webhook only (the profile stays active), so "Create executable" starts over. */
+export const resetThymeExecutable = createServerFn({ method: 'POST' }).handler(async (): Promise<ThymeOnboardingView> => {
+  const { resetExecutable, buildOnboardingView } = await import('./thymeOnboarding')
+  resetExecutable()
+  return buildOnboardingView()
 })
 
 /** Demo without a wallet: labelled simulation, no Thyme call. */

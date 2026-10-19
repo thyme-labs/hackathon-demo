@@ -1,0 +1,9 @@
+{
+  "$comment": "Synthetic originator (payer) record for the Travel Rule readiness check and the remittance advice. The company is the originator but not a CASP; this is the data the payee's CASP will ask for (Reg. (EU) 2023/1113 Art. 14(5), 16(2)). No real company.",
+  "legal_name": "Thyme Payroll demo company",
+  "address": "Na Prikope 1, 110 00 Praha 1",
+  "country": "CZ",
+  "registration_no": null,
+  "lei": null,
+  "vat_id": null
+}

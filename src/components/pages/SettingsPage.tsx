@@ -12,6 +12,7 @@ import { RelativeTime } from '@/components/ui-kit/RelativeTime'
 import { StatusDot } from '@/components/ui-kit/StatusDot'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import type { SettingsView } from '@/lib/server/dto'
 import { getSettings, resetDemoData, updateSettings } from '@/lib/server/settings.fns'
 import { forgetThymeOnboarding } from '@/lib/server/thyme.fns'
@@ -37,6 +38,28 @@ export function SettingsPage({ initial }: { initial: SettingsView }) {
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       toast.success('Settings saved')
+    },
+    onError: (e) => toast.error(e.message),
+  })
+  const [threshold, setThreshold] = useState(String(view.autoPayThreshold))
+  const saveThreshold = useMutation({
+    mutationFn: () => updateSettings({ data: { autoPayThreshold: Number(threshold) } }),
+    onSuccess: async ({ autoPay }) => {
+      setThreshold(String(autoPay.threshold))
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      await queryClient.invalidateQueries({ queryKey: ['agents'] })
+      toast.success(`Auto-pay threshold saved · ${autoPay.threshold}`, { description: 'Applies from the next investigation on.' })
+    },
+    onError: (e) => toast.error(e.message),
+  })
+  const toggleAutoPay = useMutation({
+    mutationFn: (enabled: boolean) => updateSettings({ data: { autoPayEnabled: enabled } }),
+    onSuccess: async ({ autoPay }) => {
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      await queryClient.invalidateQueries({ queryKey: ['agents'] })
+      toast.message(autoPay.enabled ? 'Auto-pay on' : 'Auto-pay off', { description: autoPay.enabled ? `Clean invoices of active payees scoring ≥ ${autoPay.threshold} are paid without you.` : 'Every invoice now waits for your approval.' })
     },
     onError: (e) => toast.error(e.message),
   })
@@ -84,6 +107,22 @@ export function SettingsPage({ initial }: { initial: SettingsView }) {
   function handleForget() {
     forget.mutate()
   }
+  function handleThresholdSubmit(event: FormEvent) {
+    event.preventDefault()
+    const n = Number(threshold)
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      toast.error('Enter a number between 0 and 100')
+      return
+    }
+    saveThreshold.mutate()
+  }
+  function handleThresholdChange(event: FormEvent<HTMLInputElement>) {
+    setThreshold((event.target as HTMLInputElement).value)
+  }
+  function handleAutoPayToggle(checked: boolean) {
+    toggleAutoPay.mutate(checked)
+  }
+  const thresholdDirty = threshold !== String(view.autoPayThreshold)
 
   const profileTone = thyme.profileStatus === 'active' ? 'ok' : thyme.profileStatus === 'failed' ? 'fail' : thyme.profileStatus === 'pending' ? 'warn' : 'idle'
   const executableTone = thyme.executableStatus === 'active' ? 'ok' : thyme.executableStatus === 'provisioning' ? 'warn' : thyme.executableId ? 'fail' : 'idle'
@@ -154,11 +193,39 @@ export function SettingsPage({ initial }: { initial: SettingsView }) {
         </form>
       </Section>
 
+      <Section title="Auto-pay">
+        <div className="grid gap-4 rounded-xl bg-surface p-6 md:grid-cols-[1fr_auto]">
+          <form onSubmit={handleThresholdSubmit} className="grid gap-3">
+            <Field label="Auto-pay threshold (score 0–100 an invoice needs to be paid without your approval)">
+              <div className="flex gap-2">
+                <Input type="number" min={0} max={100} step={1} value={threshold} onChange={handleThresholdChange} className="w-28 font-mono" aria-label="Auto-pay threshold" disabled={!view.autoPayEnabled} />
+                <Button type="submit" disabled={saveThreshold.isPending || !thresholdDirty || !view.autoPayEnabled}>
+                  {saveThreshold.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
+                  Save
+                </Button>
+              </div>
+            </Field>
+            <div className="text-xs text-dim">
+              Only an active payee with trust ≥ 60 and no failed check can be paid automatically; below the threshold the invoice waits for you.
+              {' · '}
+              <span className="font-mono">{view.autoPaySource === 'settings' ? 'from settings' : 'from AUTO_PAY_THRESHOLD'}</span>
+            </div>
+          </form>
+          <label className="flex items-start gap-3 rounded-lg bg-raised px-4 py-3 text-xs">
+            <Switch checked={view.autoPayEnabled} onCheckedChange={handleAutoPayToggle} disabled={toggleAutoPay.isPending} aria-label="Auto-pay" className="mt-0.5" />
+            <span className="grid gap-1">
+              <span className={cn('font-medium', view.autoPayEnabled ? 'text-sage' : 'text-paused')}>{view.autoPayEnabled ? `Auto-pay on · ≥ ${view.autoPayThreshold}` : 'Auto-pay off'}</span>
+              <span className="text-dim">{view.autoPayEnabled ? 'Clean invoices of active payees are paid without a click.' : 'Every invoice is held for your approval, whatever it scores.'}</span>
+            </span>
+          </label>
+        </div>
+      </Section>
+
       <Section title="Execution">
         <div className="grid gap-3 md:grid-cols-3">
           <Card label="Payment executor" value={view.executor} hint={view.execution.reason} tone={view.execution.mode === 'simulated' ? 'warn' : 'ok'} />
           <Card label="LLM provider" value={view.provider} hint={view.provider === 'mock' ? 'deterministic, no model call' : 'Haiku 4.5 extract · Sonnet 4.5 reason'} tone={view.provider === 'mock' ? 'warn' : 'ok'} />
-          <Card label="Auto-pay threshold" value={String(view.autoPayThreshold)} hint="score required to pay without approval" tone="ok" />
+          <Card label="Auto-pay" value={view.autoPayEnabled ? `≥ ${view.autoPayThreshold}` : 'off'} hint={view.autoPayEnabled ? 'score required to pay without approval' : 'every invoice waits for the owner'} tone={view.autoPayEnabled ? 'ok' : 'warn'} />
         </div>
         <div className="mt-3 flex items-center gap-3 text-xs text-dim">
           <StatusDot tone={view.boot.running ? 'ok' : 'fail'} />

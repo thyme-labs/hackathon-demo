@@ -12,7 +12,7 @@ interface Hit {
 
 export const run = async (ctx: CheckContext) => {
   const names = [...new Set([ctx.beneficiary?.name, ctx.extracted.payee.name].filter((n): n is string => !!n))]
-  const type = ctx.beneficiary?.type ?? (ctx.extracted.payee.lei ? 'company' : 'person')
+  const { type } = ctx.payeeType
   const [eu, sdn] = await Promise.all([loadEuList(), loadSdnList()])
   const cz = loadCzList()
   const hits: Hit[] = []
@@ -58,7 +58,7 @@ export const run = async (ctx: CheckContext) => {
     status: 'pass',
     evidence: `${names.map((n) => `"${n}"`).join(' and ')} (${type}) not found on the EU consolidated list (${eu.subjects.length} subjects), OFAC SDN (${sdn.entries.length} entries) or the CZ national list.`,
     source,
-    data: { screened: names, type },
+    data: { screened: names, type, type_source: ctx.payeeType.source },
   })
 }
 

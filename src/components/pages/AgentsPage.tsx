@@ -11,7 +11,7 @@ import { formatEur, formatTime, formatUsd } from '@/components/ui-kit/format'
 import { RelativeTime } from '@/components/ui-kit/RelativeTime'
 import { StatusDot } from '@/components/ui-kit/StatusDot'
 import { Button } from '@/components/ui/button'
-import { listAgents, refreshThymeExecutable, toggleAgent } from '@/lib/server/agents.fns'
+import { listAgents, refreshThymeExecutable, runPaymentAgentNow, toggleAgent } from '@/lib/server/agents.fns'
 import type { AgentView } from '@/lib/server/dto'
 
 export function AgentsPage({ initial }: { initial: AgentView[] }) {
@@ -46,7 +46,22 @@ function AgentCard({ agent }: { agent: AgentView }) {
     mutationFn: () => refreshThymeExecutable(),
     onSuccess: async (r) => {
       await queryClient.invalidateQueries({ queryKey: ['agents'] })
-      toast.message(r.status ? `Executable ${r.status}${r.pausedReason ? ` · ${r.pausedReason}` : ''}` : 'No Thyme executable to read')
+      await queryClient.invalidateQueries({ queryKey: ['thyme-onboarding'] })
+      const line = `Executable ${r.status}${r.pausedReason ? ` · ${r.pausedReason}` : ''} · webhook ${r.hasWebhook ? 'ready' : 'missing'}`
+      if (r.ready) toast.message(line, { description: r.message })
+      else toast.warning(line, { description: r.message })
+    },
+    onError: (e) => toast.error('Re-sync failed', { description: e.message }),
+  })
+  const runNow = useMutation({
+    mutationFn: () => runPaymentAgentNow(),
+    onSuccess: async (r) => {
+      await queryClient.invalidateQueries({ queryKey: ['agents'] })
+      await queryClient.invalidateQueries({ queryKey: ['payouts'] })
+      await queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      if (r.paused) toast.warning('Payment agent is paused', { description: `${r.pending} pending payout(s) wait until it is resumed` })
+      else toast.message(r.handled > 0 ? `${r.handled} payout(s) handled` : 'Nothing to pay', { description: r.pending > 0 ? `${r.pending} still pending (recently handed to Thyme or waiting for approval)` : undefined })
     },
     onError: (e) => toast.error(e.message),
   })
@@ -59,6 +74,9 @@ function AgentCard({ agent }: { agent: AgentView }) {
   }
   function handleRefresh() {
     refresh.mutate()
+  }
+  function handleRunNow() {
+    runNow.mutate()
   }
 
   return (
@@ -81,7 +99,7 @@ function AgentCard({ agent }: { agent: AgentView }) {
         <div className="mt-6 grid grid-cols-3 gap-3">
           <Mini label="Model calls" value={String(agent.llm_calls)} />
           <Mini label="Cost so far" value={formatUsd(agent.cost_usd)} />
-          <Mini label="Auto-pay ≥" value={String(agent.config.auto_pay_threshold ?? 100)} />
+          <Mini label="Auto-pay" value={agent.autoPay.enabled ? `≥ ${agent.autoPay.threshold}` : 'off'} />
         </div>
       )}
 
@@ -174,15 +192,32 @@ function AgentCard({ agent }: { agent: AgentView }) {
             <Chip variant="agent">country risk</Chip>
             <Chip variant="agent">issuer backing</Chip>
             <Chip variant="agent">injection text</Chip>
+            <Chip variant="agent" tone={agent.autoPay.enabled ? 'default' : 'warn'} title="Owner-editable on /settings">
+              {agent.autoPay.enabled ? `auto-pay ≥ ${agent.autoPay.threshold}` : 'auto-pay off'}
+            </Chip>
           </>
         )}
       </div>
 
-      <div className="mt-6 flex items-center justify-between gap-4">
-        <Button variant={running ? 'outline' : 'default'} className={cn(running && 'border-blocked/40 text-blocked hover:bg-blocked/10 hover:text-blocked')} onClick={handleToggle} disabled={toggle.isPending}>
-          {toggle.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : running ? <Pause aria-hidden /> : <Play aria-hidden />}
-          {running ? 'Pause' : 'Resume'}
-        </Button>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant={running ? 'outline' : 'default'} className={cn(running && 'border-blocked/40 text-blocked hover:bg-blocked/10 hover:text-blocked')} onClick={handleToggle} disabled={toggle.isPending}>
+            {toggle.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : running ? <Pause aria-hidden /> : <Play aria-hidden />}
+            {running ? 'Pause' : 'Resume'}
+          </Button>
+          {agent.kind === 'payment' ? (
+            <>
+              <Button variant="secondary" onClick={handleRunNow} disabled={runNow.isPending} title="One pass of the payment agent over every pending payout">
+                {runNow.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : <Play aria-hidden />}
+                Run payment agent now
+              </Button>
+              <Button variant="ghost" className="text-dim" onClick={handleRefresh} disabled={refresh.isPending || !thyme.executableId} title="Re-read the executable status from Thyme">
+                <RefreshCw aria-hidden className={cn(refresh.isPending && 'animate-spin')} />
+                Re-sync executable
+              </Button>
+            </>
+          ) : null}
+        </div>
         {agent.kind === 'payment' ? (
           thyme.onboarded ? (
             <span className="text-xs text-dim">Pause also pauses the Thyme executable: cron and webhook runs refuse until resumed</span>

@@ -4,8 +4,10 @@ import { createFileRoute } from '@tanstack/react-router'
  * GET /api/thyme/pending — work for the Thyme Flow `pay-invoice` task.
  * Returns pending payouts (executor=thyme) whose invoice is approved, oldest first, as
  * { payoutId, invoiceId, wallet, amountEurc } rows (amountEurc = EURC base units, 6 dp, decimal
- * string). Rows without a wallet on file are left out. Secured by X-Thyme-Token when
- * THYME_PULL_TOKEN is set; open in dev when it is empty.
+ * string). `wallet` is always an APPROVED wallet of the beneficiary: the wallet printed on the invoice
+ * when the owner approved it, else the primary wallet on file; a pending wallet is never returned.
+ * Rows without an approved wallet are left out. Secured by X-Thyme-Token when THYME_PULL_TOKEN is set;
+ * open in dev when it is empty.
  */
 export const Route = createFileRoute('/api/thyme/pending')({
   server: {

@@ -1,6 +1,7 @@
 import sample from '../../../../config/sanctions-sample.json'
 import { loadEuList, resetEuListCache } from './eu-fsf'
 import { loadSdnList, resetSdnListCache } from './ofac-sdn'
+import { loadOligarchList, resetOligarchListCache } from './wd-oligarchs'
 
 export { loadEuList, type EuList, type EuSubject } from './eu-fsf'
 export { loadSdnList, type SdnEntry, type SdnList } from './ofac-sdn'
@@ -22,14 +23,17 @@ export const loadCzList = (): { entries: CzEntry[]; asOf: string; sourceUrl: str
 export const listVersions = async (): Promise<Record<string, string>> => {
   const [eu, sdn] = await Promise.all([loadEuList(), loadSdnList()])
   const cz = loadCzList()
+  const oligarchs = await loadOligarchList()
   return {
     eu_consolidated: `${eu.fileGenerationDate || 'n/a'} (${eu.source}, ${eu.subjects.length} subjects)`,
     ofac_sdn: `${sdn.fetchedAt.slice(0, 10)} (${sdn.source}, ${sdn.entries.length} entries, ${sdn.ethIndex.size} ETH addresses)`,
     cz_national: `${cz.asOf} (manual extract, ${cz.entries.length} entries)`,
+    wd_oligarchs: oligarchs.fetchedAt ? `${oligarchs.fetchedAt.slice(0, 10)} (${oligarchs.source}, ${oligarchs.entries.length} names)` : 'not loaded',
   }
 }
 
 export const resetListCaches = (): void => {
   resetEuListCache()
   resetSdnListCache()
+  resetOligarchListCache()
 }

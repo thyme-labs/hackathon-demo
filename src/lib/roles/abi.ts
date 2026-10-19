@@ -100,3 +100,13 @@ export const erc20Abi = parseAbi([
 export const multiSendAbi = parseAbi(['function multiSend(bytes transactions) payable']);
 
 export const multicall3Abi = parseAbi(['function getEthBalance(address addr) view returns (uint256 balance)']);
+
+// Circle FiatToken (EURC / USDC) admin surface beyond ERC-20: Blacklistable, Pausable, Ownable, MasterMinter.
+// Read-only; the agent's eurc_blacklist check uses it to see whether a transfer can settle at all.
+export const fiatTokenAbi = parseAbi([
+  'function isBlacklisted(address account) view returns (bool)',
+  'function paused() view returns (bool)',
+  'function blacklister() view returns (address)',
+  'function owner() view returns (address)',
+  'function masterMinter() view returns (address)',
+]);
