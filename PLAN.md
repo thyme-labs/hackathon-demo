@@ -6,9 +6,9 @@ Code freeze: Tue 20 Oct 2026, 13:30 CEST. Pitch: 4 min demo + 3 min Q&A. This is
 
 ## 1. Product in one paragraph
 
-A company's Safe holds EURC. The owner connects a wallet and uploads an invoice. An AI agent extracts the payee, wallet and amount, screens them, and asks the owner to register the payee once with a monthly limit. That single Safe transaction installs an on-chain permission (Zodiac Roles) that lets the agent key pay **only that payee, only in EURC, only up to the limit**. Every later invoice from a registered payee is checked and paid without the owner, in under a minute. Anything outside the permission reverts on chain, even if the agent is fooled by a forged invoice.
+A company's Safe holds EURC. Invoices land in a queue. An AI agent (Bedrock) takes them one by one and investigates: is this a known beneficiary, do the wallet and details match the file, sanctions and blacklists, firm licences and warnings, country risk, public footprint (Apify), invoice integrity, the EURC issuer, the beneficiary's budget. Every check lands on a checklist with a score. New beneficiaries need one owner approval (register + monthly limit). When the checklist is all green, the agent calls Thyme through a webhook and Thyme Flow sends the EURC from the Safe; otherwise nothing moves and the owner sees why. The app keeps the history of money sent, the beneficiaries with their trust score and totals paid, and produces the accounting artefacts.
 
-Thyme's role: Thyme Flow is the scheduler and execution runtime, reached only through its public API and webhooks. The Safe + Roles architecture is what Thyme runs in production. No Thyme source code is in this repo.
+Thyme's role: Thyme Flow is the payment rail and runtime, reached only through its public API and webhooks (a webhook-triggered function returns the EURC.transfer call, Thyme executes it through a Roles profile on the Safe with sponsored gas, and we read executions back through the API). The Safe + Roles architecture is what Thyme runs in production. No Thyme source code is in this repo. Fallback for the demo: direct execution with an agent key through our own fork-tested Roles module.
 
 ## 2. Demo script (4 minutes)
 
@@ -77,6 +77,10 @@ RPC: public (publicnode/drpc) via env. Never a private node URL in the repo.
 | 8 | Token is EURC, recipient in allowlist | Roles conditions | **chain** |
 | 9 | Issuer is a MiCA EMT issuer, reserves attested | ESMA interim register (Circle EU), latest attestation | agent |
 | 10 | Wallet ownership proof | EIP-712 signature from the contractor at onboarding | agent |
+
+Multi-currency invoices: an invoice in USD, GBP, CZK, UAH or INR is converted to EURC at payout time with a mid rate from Tatum (primary), ECB/Frankfurter (fallback); the accounting leg uses the ČNB rate of the day. Rate source, value and timestamp are stored on every payout and printed on the remittance advice.
+EURC backing check (nod to the ČNB brief): issuer row in the ESMA EMT register + latest Circle reserve attestation (reserves at report date, extracted by the LLM from the public PDF, stored with source and date) compared with live on-chain EURC supply across Ethereum, Base, Avalanche and Solana read via Tatum; backing ratio with input freshness, shown as a checklist item. Below 1:1 or stale inputs → warn/stop.
+Public footprint (Apify): optional actor run (Google search / website crawl) on the beneficiary's name and domain; the LLM summarises consistency (exists, matches country, no fraud reports). Mocked when no token.
 
 Tax/accounting: CZK at the ČNB rate of the payout day, reverse-charge VAT note, withholding assessment, Travel Rule note for off-ramp > €1 000. Every rule is labelled `chain` or `agent`.
 
