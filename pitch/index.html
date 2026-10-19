@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thyme Payroll — выплаты подрядчикам за границу: минута вместо дней</title>
+<meta name="description" content="Компания держит EURC в сейфе Safe; агент платит зарегистрированным подрядчикам в пределах лимита, установленного одной подписью. Всё остальное отклоняет блокчейн.">
+<style>
+:root{--bg:#fafaf9;--ink:#111;--muted:#6b6b70;--accent:#5b8f78;--accent:oklch(0.55 0.08 165);--accent-soft:#e7efea;--line:#e5e5e2;--card:#fff;--red:#b42318;--red-soft:#fdecea;--grey-soft:#ededec}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+main{max-width:960px;margin:0 auto;padding:0 24px 96px}
+nav{position:sticky;top:0;z-index:10;background:rgba(250,250,249,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .in{max-width:1100px;margin:0 auto;padding:12px 24px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;font-size:13px}
+nav a{color:var(--muted);text-decoration:none}
+nav a:hover{color:var(--ink)}
+nav .brand{color:var(--ink);font-weight:600;margin-right:auto;display:inline-flex;align-items:center;gap:8px}
+section{padding-top:80px}
+h1{font-size:48px;line-height:1.05;letter-spacing:-.025em;margin:0 0 20px}
+h2{font-size:30px;line-height:1.2;letter-spacing:-.02em;margin:0 0 24px}
+h3{font-size:18px;margin:36px 0 12px}
+p{margin:0 0 16px}
+a{color:var(--accent)}
+.kicker{font-size:14px;color:var(--muted);letter-spacing:.02em;margin-bottom:28px}
+.hero{padding:88px 0 0}
+.lead{font-size:24px;line-height:1.35;font-weight:500;max-width:760px;margin-bottom:20px}
+.hero p.sub{font-size:19px;color:#3a3a3e;max-width:760px}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+ul,ol{padding-left:24px;margin:0 0 16px}
+li{margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;break-inside:avoid}
+.card h4{margin:0 0 8px;font-size:17px}
+.card p{margin:0;font-size:15px;color:#3a3a3e}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:8px 0 24px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:36px 0 0}
+.stat b{display:block;font-size:24px;letter-spacing:-.02em;font-weight:600;white-space:nowrap}
+.stat span{font-size:14px;color:var(--muted)}
+figure{margin:32px 0;break-inside:avoid}
+figcaption{font-size:14px;color:var(--muted);margin-top:12px}
+.frame{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+figure svg{display:block;width:100%;height:auto}
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:36px 0 0}
+.shots figure{margin:0}
+.shots img{width:100%;display:block;border-radius:10px;border:1px solid #d6d6d2;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+table{width:100%;border-collapse:collapse;font-size:15px;margin:12px 0 24px}
+th,td{text-align:left;vertical-align:top;padding:11px 12px;border-bottom:1px solid var(--line)}
+th{font-size:13px;font-weight:600;color:var(--muted)}
+table.num td:first-child{white-space:nowrap}
+table.cols3 th{width:33.3%}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:500;white-space:nowrap;vertical-align:middle}
+.chip svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.chip-chain{background:var(--accent-soft);color:var(--accent)}
+.chip-agent{background:var(--grey-soft);color:#55555a}
+.quote{border-left:3px solid var(--accent);padding:4px 0 4px 20px;font-size:21px;line-height:1.4;font-weight:500;margin:28px 0}
+.note{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 24px;margin:20px 0}
+.note.danger{border-color:#f0c4bf;background:var(--red-soft)}
+.note.danger b{color:var(--red)}
+.story{list-style:none;padding:0;margin:0 0 24px}
+.story li{display:grid;grid-template-columns:36px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.story li span{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+.story li.bad span{background:var(--red-soft);color:var(--red)}
+dl{display:grid;grid-template-columns:150px 1fr;gap:10px 20px;margin:0}
+dt{font-weight:600}
+dd{margin:0;color:#3a3a3e}
+.sources{font-size:14px;color:#4a4a4f}
+footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size:14px;color:var(--muted)}
+@media (max-width:720px){.grid3,.grid2,.stats,.shots{grid-template-columns:1fr}h1{font-size:36px}.lead{font-size:20px}table{font-size:13px}th,td{padding:8px}dl{grid-template-columns:1fr}}
+@media print{nav{display:none}body{background:#fff;font-size:12pt}main{max-width:none;padding:0}section{padding-top:28pt}h2{break-after:avoid}.card,figure,table,tr,.note,.stats,.shots,.quote,.sources,dl{break-inside:avoid;page-break-inside:avoid}a{color:inherit;text-decoration:none}.frame,.card,.note{box-shadow:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" focusable="false">
+<defs>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/></symbol>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5 0 10z" fill="#6b6b70"/></marker>
+<marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5 0 10z" fill="#b42318"/></marker>
+</defs>
+</svg>
+
+<nav><div class="in">
+<a class="brand" href="#hero">Thyme Payroll</a>
+<a href="#problem">Проблема</a>
+<a href="#eurc">EURC</a>
+<a href="#solution">Решение</a>
+<a href="#howitworks">Как работает</a>
+<a href="#safety">Подделка</a>
+<a href="#compliance">Проверки</a>
+<a href="#comparison">Сравнение</a>
+<a href="#resources">Что нужно</a>
+<a href="#business">Кому</a>
+<a href="#glossary">Словарь</a>
+<a href="#sources">Источники</a>
+</div></nav>
+
+<main>
+<header id="hero" class="hero">
+<div class="kicker">The FinTechers Hackathon 2026 · Прага, 19–20 октября · Трек 2: выплаты в евро-стейблкоине</div>
+<h1>Thyme Payroll</h1>
+<p class="lead">Выплаты подрядчикам за границу: минута вместо дней</p>
+<p class="sub">Компания держит евро-стейблкоин EURC в собственном сейфе Safe. Агент оплачивает счета зарегистрированных подрядчиков в пределах лимита, который владелец подписал один раз; всё, что выходит за рамки правила, блокчейн отклоняет сам, даже если агента обманули.</p>
+<div class="stats">
+<div class="card stat"><b>€23–94 → €0,02–0,18</b><span>стоимость перевода €1&nbsp;000: SWIFT против EURC в сети Ethereum</span></div>
+<div class="card stat"><b>&lt; 1 мин</b><span>от загрузки счёта до выплаты зарегистрированному подрядчику</span></div>
+<div class="card stat"><b>48 из 48</b><span>сценариев на копии тестовой сети прошли как задумано: разрешённые платежи прошли, все попытки выйти за рамки мандата отклонены</span></div>
+</div>
+</header>
+
+<section id="problem">
+<h2>Какую проблему решаем</h2>
+<ul>
+<li><b>Дорого.</b> Перевод €1&nbsp;000 подрядчику в Украину, Грузию или Индию через SWIFT обходится в €23–94 со всеми комиссиями и конвертацией.</li>
+<li><b>Долго и непредсказуемо.</b> Медиана SWIFT — 1&nbsp;ч 38&nbsp;мин, но хвост длинный: для Южной и Центральной Азии медиана 22&nbsp;ч, и лишь 43&nbsp;% платежей доходят до получателя за час.</li>
+<li><b>Только в рабочие дни.</b> Чешские банки принимают платёж до 14:00–15:00; одобренный в пятницу в 15:01 дойдёт в понедельник в лучшем случае.</li>
+<li><b>Подмена реквизитов и ручные проверки.</b> Письмо «мы сменили счёт» — классическое мошенничество, а получателя надо сверять со списками санкций: в сводном списке ЕС 6&nbsp;234 лица и организации, и он меняется.</li>
+</ul>
+</section>
+
+<section id="eurc">
+<h2>Что такое EURC и в чём подвох</h2>
+<p>Стейблкоин — цифровая единица, привязанная к обычной валюте один к одному. EURC — евро-стейблкоин, который выпускает Circle Internet Financial Europe под надзором французского регулятора ACPR по закону MiCA; он внесён в реестр ESMA, и в ЕЭЗ его обменивают на евро 1:1 без комиссии. Перевод EURC стоит центы (€0,02–0,18 в сети Ethereum, около €0,001 в сети Base), подтверждается в блокчейне за ~12 секунд и работает круглосуточно. Крупнейший евро-стейблкоин: €442&nbsp;млн в обращении, ~58&nbsp;% рынка.</p>
+<h3>Подвох, честно</h3>
+<ul>
+<li><b>(а) Кто-то должен держать ключи от кошелька и нажимать «отправить».</b> Поручить это ИИ опасно: его можно обмануть поддельным счётом или инструкцией, спрятанной в PDF. Авторы Zodiac Roles предупреждают: «Правила в инструкциях агента — это просьбы».</li>
+<li><b>(б) Проверки никуда не делись.</b> Санкции обязательны для всех (закон 69/2006 Sb.), налоги и бухгалтерия — тоже.</li>
+<li><b>(в) Подрядчику надо обменять EURC на местные деньги.</b> Эта цена переходит к нему: на счёт SEPA через биржу Kraken — €0,90–1; у частных продавцов в Украине и Грузии — разница курса 0,5–1,5&nbsp;%; в Сербии через лицензированный обменник — около 3,5&nbsp;%; в Индии стейблкоин не признаётся валютной выручкой (FEMA). Выше €1&nbsp;000 биржа потребует подтвердить владение кошельком.</li>
+</ul>
+</section>
+
+<section id="solution">
+<h2>Как мы это решаем</h2>
+<div class="grid3">
+<div class="card"><h4>1. Сейф компании (Safe)</h4><p>Деньги лежат в кошельке компании с несколькими владельцами; ни агент, ни Thyme владельцами не являются.</p></div>
+<div class="card"><h4>2. Мандат</h4><p>Одной подписью владелец устанавливает в блокчейне правило (модуль Zodiac Roles): платить только этим получателям, только в EURC, не больше месячного лимита на каждого. Правило отзывается в любой момент.</p></div>
+<div class="card"><h4>3. Агент</h4><p>Читает счета, извлекает получателя, кошелёк и сумму, проводит проверки и платит собственным ключом доступа, которому разрешено только то, что записано в мандате.</p></div>
+</div>
+<figure>
+<div class="frame">
+<svg viewBox="0 0 720 330" role="img" aria-label="Три слоя: Сейф, Мандат, Агент">
+<g font-family="Inter,-apple-system,Segoe UI,Roboto,sans-serif">
+<rect x="200" y="16" width="320" height="74" rx="12" fill="#e7efea" stroke="#5b8f78"/>
+<text x="360" y="48" text-anchor="middle" font-size="19" font-weight="600" fill="#111">Сейф</text>
+<text x="360" y="72" text-anchor="middle" font-size="13" fill="#6b6b70">деньги у компании, несколько владельцев</text>
+<line x1="360" y1="92" x2="360" y2="124" stroke="#6b6b70" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="378" y="113" font-size="13" fill="#6b6b70">одна подпись владельца</text>
+<rect x="200" y="128" width="320" height="74" rx="12" fill="#fff" stroke="#5b8f78"/>
+<text x="360" y="160" text-anchor="middle" font-size="19" font-weight="600" fill="#111">Мандат</text>
+<text x="360" y="184" text-anchor="middle" font-size="13" fill="#6b6b70">кому, в чём и сколько платить</text>
+<line x1="360" y1="204" x2="360" y2="236" stroke="#6b6b70" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="378" y="225" font-size="13" fill="#6b6b70">ключ только для разрешённого</text>
+<rect x="200" y="240" width="320" height="74" rx="12" fill="#fff" stroke="#c9c9c5"/>
+<text x="360" y="272" text-anchor="middle" font-size="19" font-weight="600" fill="#111">Агент</text>
+<text x="360" y="296" text-anchor="middle" font-size="13" fill="#6b6b70">читает счёт, проверяет, платит</text>
+<text x="16" y="53" font-size="13" fill="#6b6b70">держит деньги</text>
+<text x="16" y="165" font-size="13" fill="#6b6b70">держит правило</text>
+<text x="16" y="277" font-size="13" fill="#6b6b70">держит только ключ</text>
+</g>
+</svg>
+</div>
+<figcaption>Три слоя. Мандат стоит между деньгами и агентом: без него у агента нет прав, без агента мандат всё равно действует.</figcaption>
+</figure>
+<p class="quote">Правило держит блокчейн, а не инструкция для ИИ. Уберите ИИ — мандат останется. Уберите нас — деньги останутся у вас.</p>
+</section>
+
+<section id="howitworks">
+<h2>Как это работает</h2>
+<div class="grid2">
+<div>
+<h3>Первый счёт от подрядчика (пять шагов)</h3>
+<ol>
+<li>Владелец загружает счёт в PDF.</li>
+<li>Агент извлекает данные и проводит проверки: санкции, владение кошельком, страновой риск, дубликаты, эмитент EURC.</li>
+<li>Агент предлагает карточку нового получателя с месячным лимитом (например, €1&nbsp;500).</li>
+<li>Владелец правит лимит и подписывает одну операцию в Safe — она же устанавливает правило.</li>
+<li>Платёж уходит и через ~15 секунд подтверждён в блокчейне.</li>
+</ol>
+</div>
+<div>
+<h3>Следующие счета от того же подрядчика (три шага, меньше минуты)</h3>
+<ol>
+<li>Загрузка счёта.</li>
+<li>Те же проверки заново плюс сверка с остатком лимита.</li>
+<li>Выплата без подписи владельца; таймер считает секунды до подтверждения.</li>
+</ol>
+</div>
+</div>
+<figure>
+<div class="frame">
+<svg viewBox="0 0 900 270" role="img" aria-label="Первый счёт: пять шагов; следующие счета: три шага, меньше минуты">
+<g font-family="Inter,-apple-system,Segoe UI,Roboto,sans-serif">
+<text x="24" y="28" font-size="14" font-weight="600" fill="#111">Первый счёт от подрядчика — пять шагов</text>
+<line x1="90" y1="72" x2="810" y2="72" stroke="#c9c9c5" stroke-width="1.5"/>
+<g fill="#5b8f78"><circle cx="90" cy="72" r="15"/><circle cx="270" cy="72" r="15"/><circle cx="450" cy="72" r="15"/><circle cx="630" cy="72" r="15"/><circle cx="810" cy="72" r="15"/></g>
+<g fill="#fff" font-size="13" font-weight="600" text-anchor="middle"><text x="90" y="77">1</text><text x="270" y="77">2</text><text x="450" y="77">3</text><text x="630" y="77">4</text><text x="810" y="77">5</text></g>
+<g fill="#111" font-size="13" text-anchor="middle"><text x="90" y="104">Счёт в PDF</text><text x="270" y="104">Проверки</text><text x="450" y="104">Карточка получателя</text><text x="630" y="104">Одна подпись в Safe</text><text x="810" y="104">Платёж подтверждён</text></g>
+<g fill="#6b6b70" font-size="12" text-anchor="middle"><text x="90" y="122">владелец</text><text x="270" y="122">агент</text><text x="450" y="122">агент, лимит €1 500</text><text x="630" y="122">владелец</text><text x="810" y="122">~15 с</text></g>
+<text x="24" y="170" font-size="14" font-weight="600" fill="#111">Следующие счета от того же подрядчика — три шага</text>
+<rect x="420" y="155" width="76" height="24" rx="12" fill="#e7efea"/>
+<text x="458" y="172" text-anchor="middle" font-size="13" font-weight="600" fill="#5b8f78">&lt; 1 мин</text>
+<line x1="90" y1="214" x2="810" y2="214" stroke="#c9c9c5" stroke-width="1.5"/>
+<g fill="#5b8f78"><circle cx="90" cy="214" r="15"/><circle cx="450" cy="214" r="15"/><circle cx="810" cy="214" r="15"/></g>
+<g fill="#fff" font-size="13" font-weight="600" text-anchor="middle"><text x="90" y="219">1</text><text x="450" y="219">2</text><text x="810" y="219">3</text></g>
+<g fill="#111" font-size="13" text-anchor="middle"><text x="90" y="246">Загрузка счёта</text><text x="450" y="246">Проверки и остаток лимита</text><text x="810" y="246">Выплата без подписи</text></g>
+<g fill="#6b6b70" font-size="12" text-anchor="middle"><text x="90" y="264">владелец</text><text x="450" y="264">агент</text><text x="810" y="264">таймер до подтверждения</text></g>
+</g>
+</svg>
+</div>
+<figcaption>Первый счёт требует одной подписи владельца; все следующие от того же подрядчика проходят без неё, меньше чем за минуту.</figcaption>
+</figure>
+<table class="cols3">
+<thead><tr><th>Что делает человек</th><th>Что делает агент</th><th>Что гарантирует блокчейн</th></tr></thead>
+<tbody><tr>
+<td>Одной подписью регистрирует получателя и лимит; одобряет предупреждения; может отключить агента</td>
+<td>Читает счёт, сверяет кошелёк, проверяет списки, объясняет решение, платит, готовит документы</td>
+<td>Получатель только из списка, валюта только EURC, сумма не выше лимита; остальное отклоняется</td>
+</tr></tbody>
+</table>
+<div class="shots">
+<figure><img src="assets/app-dashboard.png" alt="Экран сейфа: баланс, агенты с месячными лимитами, журнал операций" loading="lazy"><figcaption>Сейф, агенты и журнал — макет интерфейса</figcaption></figure>
+<figure><img src="assets/app-chat.png" alt="Экран создания мандата: фраза владельца превращается в правило и подписывается в Safe" loading="lazy"><figcaption>Мандат из одной фразы и подпись — макет интерфейса</figcaption></figure>
+<figure><img src="assets/app-agent.png" alt="Экран агента: лимит месяца, получатели, выплаты и отклонённая попытка" loading="lazy"><figcaption>Агент «Подрядчики» и его выплаты — макет интерфейса</figcaption></figure>
+</div>
+</section>
+
+<section id="safety">
+<h2>Что будет, если счёт подделан</h2>
+<ol class="story">
+<li><span>1</span><div>Приходит счёт INV-0432: имя Анны, та же сумма, но другой кошелёк.</div></li>
+<li><span>2</span><div>Агент видит, что кошелёк не совпадает с зарегистрированным, и останавливается.</div></li>
+<li><span>3</span><div>Нажимаем «всё равно оплатить» — так поступил бы обманутый агент.</div></li>
+<li class="bad"><span>4</span><div><b>Блокчейн отклоняет операцию: денег нет, в журнале причина.</b></div></li>
+</ol>
+<figure>
+<div class="frame">
+<svg viewBox="0 0 910 196" role="img" aria-label="Подменённый счёт: агент останавливает, блокчейн отклоняет, сейф не тронут">
+<g font-family="Inter,-apple-system,Segoe UI,Roboto,sans-serif" stroke-linecap="round" stroke-linejoin="round">
+<rect x="20" y="40" width="180" height="90" rx="12" fill="#fff" stroke="#c9c9c5"/>
+<path d="M44 62h14l8 8v22H44z M58 62v8h8" fill="none" stroke="#6b6b70" stroke-width="1.6"/>
+<text x="78" y="72" font-size="14" font-weight="600" fill="#111">Счёт INV-0432</text>
+<text x="78" y="92" font-size="12" fill="#6b6b70">имя и сумма те же,</text>
+<text x="78" y="108" font-size="12" fill="#6b6b70">кошелёк другой</text>
+<line x1="204" y1="85" x2="246" y2="85" stroke="#6b6b70" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="250" y="40" width="180" height="90" rx="12" fill="#fff" stroke="#c9c9c5"/>
+<path d="M272 62v30 M272 63h22l-5 6 5 6h-22" fill="none" stroke="#b42318" stroke-width="1.8"/>
+<text x="304" y="72" font-size="14" font-weight="600" fill="#111">Агент</text>
+<text x="304" y="92" font-size="12" fill="#6b6b70">кошелёк не из реестра,</text>
+<text x="304" y="108" font-size="12" fill="#6b6b70">останавливается</text>
+<line x1="434" y1="85" x2="476" y2="85" stroke="#b42318" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-red)"/>
+<text x="455" y="150" text-anchor="middle" font-size="11" fill="#b42318">«всё равно оплатить»</text>
+<rect x="480" y="40" width="180" height="90" rx="12" fill="#fdecea" stroke="#b42318"/>
+<circle cx="508" cy="85" r="12" fill="none" stroke="#b42318" stroke-width="1.8"/>
+<path d="M502 79l12 12 M514 79l-12 12" stroke="#b42318" stroke-width="1.8"/>
+<text x="532" y="72" font-size="14" font-weight="600" fill="#b42318">Блокчейн</text>
+<text x="532" y="92" font-size="13" font-weight="600" fill="#b42318">отклонено</text>
+<text x="532" y="108" font-size="12" fill="#6b6b70">причина в журнале</text>
+<line x1="664" y1="85" x2="706" y2="85" stroke="#6b6b70" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="710" y="40" width="180" height="90" rx="12" fill="#e7efea" stroke="#5b8f78"/>
+<path d="M732 84h18v14h-18z M735 84v-5a6 6 0 0 1 12 0v5" fill="none" stroke="#5b8f78" stroke-width="1.8"/>
+<text x="762" y="72" font-size="14" font-weight="600" fill="#111">Сейф</text>
+<text x="762" y="92" font-size="12" fill="#6b6b70">деньги на месте,</text>
+<text x="762" y="108" font-size="12" fill="#6b6b70">баланс не изменился</text>
+<text x="455" y="180" text-anchor="middle" font-size="12" fill="#6b6b70">Агент — первая линия; мандат в блокчейне — последняя. Обман агента не ведёт к потере денег.</text>
+</g>
+</svg>
+</div>
+<figcaption>Подменённый счёт: агент бьёт тревогу, а если его всё же заставить платить — блокчейн отклоняет операцию, сейф не тронут.</figcaption>
+</figure>
+<div class="note">Мы прогнали 48 сценариев на копии тестовой сети, и все прошли как задумано: разрешённые платежи прошли, а превышение лимита, незнакомый получатель, другая валюта вместо EURC и попытка после отзыва — отклонены. Аварийный выключатель: одна подпись владельца — и агент теряет права, любой его перевод отклоняется.</div>
+</section>
+
+<section id="compliance">
+<h2>Проверки перед каждой выплатой</h2>
+<table class="num">
+<thead><tr><th>#</th><th>Проверка</th><th>Источник</th><th>Кто проверяет</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Кошелёк в счёте совпадает с зарегистрированным</td><td>реестр получателей</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span> <span class="small muted">(блокчейн страхует)</span></td></tr>
+<tr><td>2</td><td>Получатель не под санкциями</td><td>сводный список ЕС, OFAC SDN, национальный список ЧР</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>3</td><td>Кошелёк не под санкциями</td><td>адреса кошельков из списка OFAC SDN</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>4</td><td>Лицензии и предупреждения регуляторов (компании)</td><td>набор данных Mostly Right</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>5</td><td>Страновой риск</td><td>список ЕС высокорисковых стран (26), серый список FATF (22, июнь 2026)</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>6</td><td>Дубликат счёта, аномальная сумма, скрытые инструкции в PDF</td><td>наша база</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>7</td><td>Сумма в пределах лимита получателя</td><td>счётчик лимита в блокчейне (Zodiac Roles)</td><td><span class="chip chip-chain"><svg><use href="#i-lock"/></svg>блокчейн</span></td></tr>
+<tr><td>8</td><td>Валюта — только EURC, получатель — только из списка</td><td>правило в блокчейне (Zodiac Roles)</td><td><span class="chip chip-chain"><svg><use href="#i-lock"/></svg>блокчейн</span></td></tr>
+<tr><td>9</td><td>Эмитент лицензирован по MiCA</td><td>реестр ESMA: Circle Internet Financial Europe, код LEI 969500OYUDADGZKCR583</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>10</td><td>Подрядчик владеет кошельком</td><td>подпись подрядчика при регистрации</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+</tbody>
+</table>
+<p><b>Документы для бухгалтера:</b> авизо о платеже (номер счёта, сумма в EURC, номер операции, курс ČNB на день выплаты и сумма в кронах по §24c–§24d закона о бухучёте), месячная таблица CSV, журнал решений агента, защищённый от правок задним числом.</p>
+<p><b>Регуляторная позиция в одну строку:</b> Thyme — программное обеспечение, которое не хранит ни деньги, ни ключи клиентов, и не поставщик криптоуслуг (CASP) по MiCA; ключ агента хранится у клиента; плательщик — не обязанное лицо по закону об отмывании, но санкции обязательны для всех; НДС — обратное начисление (§108(3)(a)); налог у источника за работу, выполненную за рубежом, обычно не возникает (§22(1)(c)). <span class="muted">Это не юридическая консультация.</span></p>
+</section>
+
+<section id="comparison">
+<h2>Сравнение способов перевода</h2>
+<p>Перевод €1&nbsp;000 из чешской компании.</p>
+<figure>
+<div class="frame">
+<svg viewBox="0 0 900 230" role="img" aria-label="Стоимость перевода €1 000: SWIFT €23–94, SEPA €0–0,25, EURC в сети Ethereum €0,02–0,18">
+<g font-family="Inter,-apple-system,Segoe UI,Roboto,sans-serif">
+<text x="0" y="18" font-size="14" font-weight="600" fill="#111">Стоимость перевода €1 000, евро</text>
+<text x="0" y="36" font-size="12" fill="#6b6b70">тёмная часть — нижняя граница диапазона, светлая — верхняя; равномерная шкала</text>
+<g stroke="#ebebe8" stroke-width="1"><line x1="335" y1="56" x2="335" y2="196"/><line x1="500" y1="56" x2="500" y2="196"/><line x1="665" y1="56" x2="665" y2="196"/><line x1="830" y1="56" x2="830" y2="196"/></g>
+<line x1="170" y1="56" x2="170" y2="196" stroke="#c9c9c5" stroke-width="1.5"/>
+<g fill="#6b6b70" font-size="12" text-anchor="middle"><text x="170" y="216">€0</text><text x="335" y="216">€25</text><text x="500" y="216">€50</text><text x="665" y="216">€75</text><text x="830" y="216">€100</text></g>
+<g font-size="14" fill="#111"><text x="0" y="80">SWIFT</text><text x="0" y="128">SEPA</text><text x="0" y="176">EURC, Ethereum</text></g>
+<g font-size="11" fill="#6b6b70"><text x="0" y="96">медиана 1 ч 38 мин</text><text x="0" y="144">до след. рабочего дня</text><text x="0" y="192">~12 с, 24/7</text></g>
+<g><title>SWIFT: €23–94 за перевод €1 000</title>
+<path d="M170 64h616.4a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H170z" fill="#bcd3c8"/>
+<path d="M170 64h147.8a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H170z" fill="#5b8f78"/>
+<text x="800" y="80" font-size="14" font-weight="600" fill="#111">€23–94</text></g>
+<g><title>SEPA: €0–0,25 за перевод €1 000</title>
+<path d="M170 112h0a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H170z" fill="#bcd3c8"/>
+<text x="184" y="128" font-size="14" font-weight="600" fill="#111">€0–0,25</text></g>
+<g><title>EURC в сети Ethereum: €0,02–0,18 за перевод; через Safe и мандат €0,05–0,49</title>
+<path d="M170 160h0a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H170z" fill="#bcd3c8"/>
+<text x="184" y="176" font-size="14" font-weight="600" fill="#111">€0,02–0,18</text>
+<text x="268" y="176" font-size="12" fill="#6b6b70">(через Safe и мандат €0,05–0,49)</text></g>
+</g>
+</svg>
+</div>
+<figcaption>Стоимость и время. SEPA и EURC на этой шкале почти неотличимы от нуля; разница между ними — в скорости, круглосуточности и географии, см. таблицу.</figcaption>
+</figure>
+<table>
+<thead><tr><th>Способ</th><th>Стоимость за €1&nbsp;000</th><th>Время</th><th>Доступность</th></tr></thead>
+<tbody>
+<tr><td>SWIFT (ČSOB, KB, Fio, RB)</td><td>€23–94: отправитель €8–12, посредники €13–44, плюс получатель и конвертация</td><td>медиана 1&nbsp;ч 38&nbsp;мин, среднее 8&nbsp;ч 36&nbsp;мин; Южная и Центральная Азия — медиана 22&nbsp;ч</td><td>пн–пт, приём до 14:00–15:00</td></tr>
+<tr><td>SEPA</td><td>€0–0,25 (ČSOB 6&nbsp;CZK; KB, Fio — 0)</td><td>до следующего рабочего дня, обычно тот же день</td><td>рабочие дни; 41 страна, без Украины, Грузии, Индии</td></tr>
+<tr><td>SEPA Instant</td><td>та же цена по закону (в ЧР с 9.1.2027)</td><td>10&nbsp;с</td><td>24/7; чешские банки обязаны отправлять лишь с 9.7.2027</td></tr>
+<tr><td>Wise Business</td><td>Индия €6,18; Украина €4,22 (временно, было €16,97); Грузия €15,99; Сербия €23,18</td><td>от секунд до часов</td><td>приложение 24/7, банковские этапы в рабочие дни</td></tr>
+<tr><td>EURC, сеть Ethereum</td><td>€0,02–0,18; через Safe и мандат €0,05–0,49</td><td>~12&nbsp;с до подтверждения, необратимо через 13–19&nbsp;мин</td><td>24/7/365</td></tr>
+<tr><td>EURC, сеть Base</td><td>~€0,001</td><td>~2&nbsp;с</td><td>24/7/365</td></tr>
+</tbody>
+</table>
+<p class="quote">Честно: дешевле SWIFT, не дешевле SEPA, быстрее обоих и круглосуточно; SEPA Instant быстрее, но из Чехии его пока почти не отправляют. Обмен на местные деньги — расход подрядчика.</p>
+</section>
+
+<section id="resources">
+<h2>Что нужно</h2>
+<div class="grid2">
+<div class="card"><h4>Команда, 2–4 человека</h4><p>Блокчейн и серверная часть; интерфейс; ИИ-агент; презентация и проверки.</p></div>
+<div class="card"><h4>Инструменты</h4><p>AWS Bedrock ($800 на команду); Safe и Zodiac Roles (открытый код); тестовая сеть Ethereum Sepolia и бесплатная раздача тестовых EURC от Circle (20 EURC за запрос); набор данных Mostly Right (51&nbsp;010 записей); открытые данные о курсах ČNB.</p></div>
+</div>
+<h3>План</h3>
+<table class="num">
+<thead><tr><th>Когда</th><th>Что готово</th></tr></thead>
+<tbody>
+<tr><td>пн 16:00</td><td>каркас и тестовые средства</td></tr>
+<tr><td>пн 17:00</td><td>правила в блокчейне</td></tr>
+<tr><td>пн 19:30</td><td>агент платит по счёту — контрольная точка</td></tr>
+<tr><td>пн 23:00</td><td>интерфейс</td></tr>
+<tr><td>вт 02:00</td><td>документы и сравнение</td></tr>
+<tr><td>вт 06:00</td><td>сценарий подделки, выключатель, две репетиции</td></tr>
+<tr><td>вт 09:00</td><td>агент в облаке AWS (максимум 2 часа)</td></tr>
+<tr><td>вт 12:30</td><td>подача</td></tr>
+<tr><td>вт 13:30</td><td>заморозка кода</td></tr>
+</tbody>
+</table>
+<p><b>Было до хакатона:</b> продукт Thyme (закрытый код, организаторам раскрыт), открытые компоненты Safe и Zodiac Roles, библиотеки viem и wagmi, модели Claude в Bedrock. <b>Сделано на хакатоне:</b> всё после метки <code>hackathon-start</code> — агент, проверки, интерфейс, документы, сравнение. Код Thyme в проект не входит.</p>
+</section>
+
+<section id="business">
+<h2>Кому это нужно</h2>
+<ul>
+<li><b>Компании Центральной и Восточной Европы с удалёнными подрядчиками</b> вне SEPA — сегодня им остаётся SWIFT или платформы вроде Deel ($49 за подрядчика в месяц) и Remote ($29).</li>
+<li><b>Необанки и эмитенты электронных денег</b> — встроенный сервис для бизнес-клиентов; ключи и деньги остаются у клиента.</li>
+<li><b>Платформы расчётов с фрилансерами</b> — заменить банковский этап выплат.</li>
+</ul>
+<p>Для Thyme это новая продуктовая линия на уже работающей основе: Safe и правила в блокчейне. Честно о рынке: B2B-платежи стейблкоинами в 2025 году — $226&nbsp;млрд, но все евро-стейблкоины вместе — около €817&nbsp;млн в обращении; выплаты в евро-стейблкоинах только начинаются, а по заключению ESMA с 8 января 2027 европейские криптосервисы должны работать только со стейблкоинами, выпущенными по MiCA.</p>
+</section>
+
+<section id="glossary">
+<h2>Словарь</h2>
+<dl>
+<dt>Safe</dt><dd>кошелёк компании в блокчейне с несколькими владельцами и подключаемыми правилами.</dd>
+<dt>Стейблкоин</dt><dd>цифровая единица, привязанная к обычной валюте один к одному.</dd>
+<dt>EURC</dt><dd>евро-стейблкоин от Circle, выпущенный по правилам MiCA.</dd>
+<dt>MiCA</dt><dd>закон ЕС о рынках криптоактивов: правила для эмитентов и поставщиков услуг.</dd>
+<dt>Мандат</dt><dd>правило в блокчейне: кому, в чём и сколько агент может платить.</dd>
+<dt>Блокчейн</dt><dd>общая книга записей, которую никто не может переписать в одиночку; в ней лежат деньги и правило, и она сама исполняет правило.</dd>
+<dt>Ethereum, Base</dt><dd>две публичные блокчейн-сети; Base работает поверх Ethereum, переводы в ней дешевле и быстрее.</dd>
+<dt>Zodiac Roles</dt><dd>открытый модуль для Safe, который записывает мандат в блокчейн и отклоняет всё, что в него не входит.</dd>
+<dt>Агент</dt><dd>программа на основе ИИ: читает счета, проверяет получателя и отправляет платёж своим ключом доступа.</dd>
+<dt>OFAC SDN</dt><dd>санкционный список США; единственный официальный список, где есть адреса кошельков.</dd>
+<dt>Тестовая сеть</dt><dd>копия блокчейна без реальных денег; на ней идёт демо.</dd>
+<dt>Обмен на обычные деньги</dt><dd>продажа стейблкоина за евро или местную валюту на банковский счёт; эту часть делает подрядчик.</dd>
+</dl>
+</section>
+
+<section id="sources">
+<h2>Источники</h2>
+<ul class="sources">
+<li>ČSOB, Sazebník pro právnické osoby (k 1. 11. 2025); Komerční banka, тарифы с 1. 5. 2026 (Měšec); Fio banka, cizoměnový platební styk; Raiffeisenbank, Ceník pro firmy a korporace (1. 5. 2026).</li>
+<li>BIS CPMI, swift_gpi.pdf; Swift, пресс-релиз октября 2024; Wise, справка о комиссиях банков-посредников и страницы send-money (19.10.2026).</li>
+<li>EPC409-09 List of SEPA Scheme Countries v8.0; PSD2 ст. 83; регламент (EU) 2024/886.</li>
+<li>ESMA, interim MiCA EMT register (EMTWP.csv); Circle EEA Terms (7.7.2026); Circle, адреса контрактов EURC и раздача тестовых EURC.</li>
+<li>Chainlink, курсы ETH/USD и EUR/USD в сети Sepolia; данные о комиссиях Ethereum (drpc), CoinGecko, Basescan — 19.10.2026.</li>
+<li>ČNB, api.cnb.cz/cnbapi/exrates/daily; законы 563/1991, 69/2006, 586/1992, 235/2004 Sb.</li>
+<li>Kraken, комиссии на вывод; ECD.rs; p2p.army; Xflow (FEMA); регламент (EU) 2023/1113.</li>
+<li>Zodiac Roles, «Permission an AI agent» (19.10.2026); наш тест Zodiac Roles v2.1.1, 48 сценариев на копии тестовой сети Sepolia (fork_per-payee.json).</li>
+<li>Mostly Right (версия 0994c21f…, 19.10.2026); сводный санкционный список ЕС (15.10.2026); OFAC SDN.</li>
+<li>Deel и Remote, страницы с ценами; CryptoBriefing/DefiLlama (6.10.2026) — объём евро-стейблкоинов; отраслевые оценки B2B-платежей стейблкоинами за 2025 год; ESMA, заключение от 8.10.2026 о стейблкоинах вне MiCA.</li>
+<li>PLAN.md проекта; бриф организаторов Track 2.</li>
+</ul>
+</section>
+</main>
+<footer>Thyme Payroll — The FinTechers Hackathon 2026, Прага · thymelabs.io</footer>
+</body>
+</html>
