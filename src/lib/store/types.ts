@@ -12,6 +12,7 @@ export type InvoiceStatus =
   | 'paid'
   | 'failed'
 export type PayoutStatus = 'pending' | 'submitted' | 'confirmed' | 'failed' | 'reverted'
+/** Only 'thyme' is written today; 'direct' survives on rows from before the agent key was retired. */
 export type PayoutExecutor = 'thyme' | 'direct'
 export type AgentKind = 'compliance' | 'payment'
 export type AgentStatus = 'running' | 'paused'

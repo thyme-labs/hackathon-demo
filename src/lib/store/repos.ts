@@ -298,14 +298,29 @@ export const payouts = {
       )
       .all() as (Payout & { payee_wallet: string | null; invoice_number: string | null })[]
   },
-  /** Pending payouts for the in-process payment agent (direct executor or Thyme trigger). */
+  /**
+   * Pending payouts for the in-process payment agent. Rows handed to Thyme in the last two minutes
+   * (submitted_at set while still pending) are left alone so a tick never triggers the same run twice;
+   * after that window the trigger is repeated with the same Idempotency-Key (Thyme replays it).
+   */
   listPending(): (Payout & { invoice_status: string })[] {
     return getDb()
       .query(
         `SELECT p.*, i.status AS invoice_status FROM payouts p JOIN invoices i ON i.id = p.invoice_id
-         WHERE p.status = 'pending' AND i.status IN ('approved', 'paying') ORDER BY p.created_at ASC`,
+         WHERE p.status = 'pending' AND i.status IN ('approved', 'paying')
+           AND (p.submitted_at IS NULL OR p.submitted_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-120 seconds'))
+         ORDER BY p.created_at ASC`,
       )
       .all() as (Payout & { invoice_status: string })[]
+  },
+  /** Confirmed + in-flight EUR for one beneficiary since `sinceIso`, excluding one payout (the 30-day limit check). */
+  spentEurSince(beneficiaryId: string, sinceIso: string, excludePayoutId = ''): number {
+    const row = getDb()
+      .query(
+        "SELECT COALESCE(SUM(amount_eur), 0) AS total FROM payouts WHERE beneficiary_id = ? AND id <> ? AND status IN ('pending', 'submitted', 'confirmed') AND created_at >= ?",
+      )
+      .get(beneficiaryId, excludePayoutId, sinceIso) as { total: number } | null
+    return row?.total ?? 0
   },
   /** Confirmed + in-flight EUR per beneficiary in the current calendar month (dashboard budget bars). */
   paidThisMonthByBeneficiary(now = new Date()): Record<string, number> {

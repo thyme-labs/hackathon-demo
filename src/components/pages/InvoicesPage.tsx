@@ -12,7 +12,7 @@ import { formatMoney, formatTime } from '@/components/ui-kit/format'
 import { StatusDot, toneForStatus } from '@/components/ui-kit/StatusDot'
 import { Button } from '@/components/ui/button'
 import type { InvoiceListItem } from '@/lib/server/dto'
-import { confirmInstall, forceInvoicePayout, getInvoice, listInvoices, retryInvoice, runWorkerOnce } from '@/lib/server/invoices.fns'
+import { forceInvoicePayout, getInvoice, listInvoices, registerBeneficiary, retryInvoice, runWorkerOnce } from '@/lib/server/invoices.fns'
 
 interface InvoicesPageProps {
   initial: InvoiceListItem[]
@@ -61,6 +61,7 @@ export function InvoicesPage({ initial, selectedId }: InvoicesPageProps) {
     onSuccess: async (r) => {
       await invalidate()
       if (r.status === 'reverted') toast.error('Chain reverted the transfer · no money moved')
+      else if (r.status === 'failed') toast.error('Payment rail refused · no money moved')
       else toast.message(`Payout ${r.status}`)
     },
     onError: (e) => toast.error(e.message),
@@ -69,7 +70,7 @@ export function InvoicesPage({ initial, selectedId }: InvoicesPageProps) {
     mutationFn: () => {
       const d = detail.data
       if (!d?.beneficiary) throw new Error('no beneficiary on file')
-      return confirmInstall({ data: { invoiceId: d.invoice.id, beneficiaryId: d.beneficiary.id, mode: 'none', txHash: null, rolesProxy: null, roleKey: null, mandateId: null, simulated: true } })
+      return registerBeneficiary({ data: { invoiceId: d.invoice.id, beneficiaryId: d.beneficiary.id } })
     },
     onSuccess: async () => {
       await invalidate()

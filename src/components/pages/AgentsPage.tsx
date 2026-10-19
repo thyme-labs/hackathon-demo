@@ -1,9 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ExternalLink, LoaderCircle, Pause, Play } from 'lucide-react'
+import { LoaderCircle, Pause, Play, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { type Address, getAddress } from 'viem'
-import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
 import { cn } from '@/lib/utils'
 import { PageHeader, Section } from '@/components/shell/Shell'
 import { AddressMono } from '@/components/ui-kit/AddressMono'
@@ -13,9 +11,7 @@ import { formatEur, formatTime, formatUsd } from '@/components/ui-kit/format'
 import { RelativeTime } from '@/components/ui-kit/RelativeTime'
 import { StatusDot } from '@/components/ui-kit/StatusDot'
 import { Button } from '@/components/ui/button'
-import { buildExecTransactionCall } from '@/lib/chain/safe'
-import { SEPOLIA_CHAIN_ID } from '@/lib/roles/constants'
-import { listAgents, recordMembershipTx, toggleAgent } from '@/lib/server/agents.fns'
+import { listAgents, refreshThymeExecutable, toggleAgent } from '@/lib/server/agents.fns'
 import type { AgentView } from '@/lib/server/dto'
 
 export function AgentsPage({ initial }: { initial: AgentView[] }) {
@@ -23,7 +19,7 @@ export function AgentsPage({ initial }: { initial: AgentView[] }) {
   const agents = data ?? initial
   return (
     <>
-      <PageHeader title="Agents" eyebrow="Compliance checks the invoice; Payment moves the EURC. Both can be paused." actions={<ChipLegend />} />
+      <PageHeader title="Agents" eyebrow="Compliance checks the invoice; Payment hands approved payouts to Thyme Flow. Both can be paused." actions={<ChipLegend />} />
       <div className="mt-8 grid gap-4 lg:grid-cols-2">
         {agents.map((agent) => (
           <AgentCard key={agent.id} agent={agent} />
@@ -35,36 +31,34 @@ export function AgentsPage({ initial }: { initial: AgentView[] }) {
 
 function AgentCard({ agent }: { agent: AgentView }) {
   const queryClient = useQueryClient()
-  const { address, isConnected } = useAccount()
-  const publicClient = usePublicClient()
-  const { writeContractAsync } = useWriteContract()
   const toggle = useMutation({
     mutationFn: () => toggleAgent({ data: { id: agent.id } }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ['agents'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      toast.message(result.status === 'paused' ? `${agent.name} paused` : `${agent.name} resumed`)
-      const plan = result.plan
-      if (plan?.safeTx && plan.safeAddress && isConnected && address && publicClient) {
-        try {
-          const call = buildExecTransactionCall(getAddress(plan.safeAddress), address as Address, { to: plan.safeTx.to, value: BigInt(plan.safeTx.value), data: plan.safeTx.data, operation: plan.safeTx.operation })
-          const hash = await writeContractAsync({ ...call, chainId: SEPOLIA_CHAIN_ID })
-          await publicClient.waitForTransactionReceipt({ hash })
-          await recordMembershipTx({ data: { member: result.status === 'running', txHash: hash } })
-          toast.success(result.status === 'paused' ? 'Role membership revoked on chain' : 'Role membership restored on chain')
-          await queryClient.invalidateQueries({ queryKey: ['agents'] })
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : String(error))
-        }
-      }
+      const description = result.thyme ? result.thyme.message : undefined
+      if (result.thyme && !result.thyme.applied && agent.thyme.onboarded) toast.warning(`${agent.name} ${result.status} locally; Thyme not updated`, { description })
+      else toast.message(result.status === 'paused' ? `${agent.name} paused` : `${agent.name} resumed`, { description })
+    },
+    onError: (e) => toast.error(e.message),
+  })
+  const refresh = useMutation({
+    mutationFn: () => refreshThymeExecutable(),
+    onSuccess: async (r) => {
+      await queryClient.invalidateQueries({ queryKey: ['agents'] })
+      toast.message(r.status ? `Executable ${r.status}${r.pausedReason ? ` · ${r.pausedReason}` : ''}` : 'No Thyme executable to read')
     },
     onError: (e) => toast.error(e.message),
   })
   const running = agent.status === 'running'
   const models = (agent.config.models as { extract?: string; reason?: string } | undefined) ?? {}
+  const thyme = agent.thyme
 
   function handleToggle() {
     toggle.mutate()
+  }
+  function handleRefresh() {
+    refresh.mutate()
   }
 
   return (
@@ -111,27 +105,53 @@ function AgentCard({ agent }: { agent: AgentView }) {
           <>
             <dt className="text-dim">Executor</dt>
             <dd>
-              {agent.executor} · <span className={agent.execution.mode === 'simulated' ? 'text-paused' : 'text-sage'}>{agent.execution.mode}</span>
+              Thyme Flow · <span className={agent.execution.mode === 'simulated' ? 'text-paused' : 'text-sage'}>{agent.execution.mode}</span>
             </dd>
             <dt className="text-dim">Why</dt>
             <dd className="text-dim">{agent.execution.reason}</dd>
-            <dt className="text-dim">Agent key</dt>
-            <dd>{agent.agentAddress ? <AddressMono value={agent.agentAddress} /> : <span className="text-dim">none</span>}</dd>
-            <dt className="text-dim">Roles module</dt>
-            <dd>{agent.rolesProxy ? <AddressMono value={agent.rolesProxy} /> : <span className="text-dim">not installed</span>}</dd>
-            <dt className="text-dim">Thyme Flow</dt>
-            <dd className="flex items-center gap-2">
-              {agent.thyme.triggerMode === 'none' ? <span className="text-dim">not configured</span> : agent.thyme.triggerMode}
-              {agent.thyme.executableId ? (
-                <a href={agent.thyme.consoleUrl ?? '#'} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-mono text-dim hover:text-text">
-                  {agent.thyme.executableId.slice(0, 12)}…
-                  <ExternalLink aria-hidden className="size-3" />
-                </a>
-              ) : null}
+            <dt className="text-dim">Safe</dt>
+            <dd>{thyme.safeAddress ? <AddressMono value={thyme.safeAddress} /> : <span className="text-dim">not enabled</span>}</dd>
+            <dt className="text-dim">Profile</dt>
+            <dd className="truncate font-mono" title={thyme.profileId ?? undefined}>
+              {thyme.profileId ? (
+                <>
+                  {thyme.profileId} <span className="text-dim">· {thyme.profileStatus ?? 'unknown'}</span>
+                </>
+              ) : (
+                <span className="text-dim">none</span>
+              )}
             </dd>
+            <dt className="text-dim">Executable</dt>
+            <dd className="flex items-center gap-2 truncate font-mono" title={thyme.executableId ?? undefined}>
+              {thyme.executableId ? (
+                <>
+                  <span className="truncate">{thyme.executableId}</span>
+                  <span className={cn('shrink-0', thyme.executableStatus === 'active' ? 'text-dim' : 'text-paused')}>· {thyme.executableStatus ?? 'unknown'}</span>
+                  <button type="button" onClick={handleRefresh} aria-label="Refresh executable status" className="shrink-0 rounded-sm p-0.5 text-dim hover:text-text" disabled={refresh.isPending}>
+                    <RefreshCw aria-hidden className={cn('size-3', refresh.isPending && 'animate-spin')} />
+                  </button>
+                </>
+              ) : (
+                <span className="text-dim">none</span>
+              )}
+            </dd>
+            {thyme.executablePausedReason ? (
+              <>
+                <dt className="text-dim">Paused</dt>
+                <dd className="break-words text-paused">{thyme.executablePausedReason}</dd>
+              </>
+            ) : null}
+            <dt className="text-dim">Trigger</dt>
+            <dd>{thyme.triggerMode === 'none' ? <span className="text-dim">none (simulated)</span> : thyme.triggerMode === 'webhook' ? 'webhook + cron every minute' : 'management run + cron every minute'}</dd>
+            <dt className="text-dim">Last execution</dt>
+            <dd className="truncate font-mono" title={thyme.lastExecutionId ?? undefined}>
+              {thyme.lastExecutionId ?? <span className="text-dim">none yet</span>}
+            </dd>
+            <dt className="text-dim">Roles module</dt>
+            <dd>{thyme.rolesProxy ? <AddressMono value={thyme.rolesProxy} /> : <span className="text-dim">none</span>}</dd>
             <dt className="text-dim">Payees</dt>
             <dd>
-              {agent.payees} · {formatEur(agent.limit_eur)} / mo combined
+              {agent.payees} · {formatEur(agent.limit_eur)} / 30 d combined
             </dd>
           </>
         )}
@@ -140,9 +160,11 @@ function AgentCard({ agent }: { agent: AgentView }) {
       <div className="mt-5 flex flex-wrap gap-1.5">
         {agent.kind === 'payment' ? (
           <>
-            <Chip variant="chain">{agent.payees} payee{agent.payees === 1 ? '' : 's'}</Chip>
-            <Chip variant="chain">per-payee limit</Chip>
             <Chip variant="chain">EURC only</Chip>
+            <Chip variant="chain">transfer only</Chip>
+            <Chip variant="chain">this Safe via Thyme</Chip>
+            <Chip variant="agent">{agent.payees} payee{agent.payees === 1 ? '' : 's'}</Chip>
+            <Chip variant="agent">per-payee limit</Chip>
             <Chip variant="agent">invoice approved</Chip>
           </>
         ) : (
@@ -156,19 +178,30 @@ function AgentCard({ agent }: { agent: AgentView }) {
         )}
       </div>
 
-      <div className="mt-6 flex items-center justify-between">
+      <div className="mt-6 flex items-center justify-between gap-4">
         <Button variant={running ? 'outline' : 'default'} className={cn(running && 'border-blocked/40 text-blocked hover:bg-blocked/10 hover:text-blocked')} onClick={handleToggle} disabled={toggle.isPending}>
           {toggle.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : running ? <Pause aria-hidden /> : <Play aria-hidden />}
           {running ? 'Pause' : 'Resume'}
         </Button>
-        {agent.kind === 'payment' ? <span className="text-xs text-dim">{agent.rolesProxy ? 'Pause also revokes the role on chain (1 tx)' : 'Pause stops the loop; no module installed yet'}</span> : null}
+        {agent.kind === 'payment' ? (
+          thyme.onboarded ? (
+            <span className="text-xs text-dim">Pause also pauses the Thyme executable: cron and webhook runs refuse until resumed</span>
+          ) : (
+            <span className="text-xs text-dim">
+              Pause stops the loop ·{' '}
+              <Link to="/onboarding" className="hover:text-text">
+                enable payroll on a Safe
+              </Link>
+            </span>
+          )
+        ) : null}
       </div>
 
       <Section title="Runs" className="mt-8">
         <div className="ml-1.5 border-l border-track">
           {agent.runs.length === 0 ? <div className="pl-6 text-xs text-dim">no runs yet</div> : null}
           {agent.runs.map((run) => {
-            const blocked = run.event.includes('rejected') || run.event.includes('reverted') || run.event.includes('failed')
+            const blocked = run.event.includes('rejected') || run.event.includes('reverted') || run.event.includes('failed') || run.event.includes('refused')
             const held = run.event.includes('needs_approval') || run.event.includes('held') || run.event.includes('paused')
             return (
               <div key={run.id} className="relative pl-6 py-2">

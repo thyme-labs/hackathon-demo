@@ -2,7 +2,7 @@
 // in-process loops (compliance queue + payment agent). Guarded on globalThis so SSR, dev HMR and the
 // Nitro worker only ever run one set of timers.
 import { serverEnv } from '../env'
-import { agents, settings } from '../store/repos'
+import { agents } from '../store/repos'
 
 if (typeof window !== 'undefined') {
   throw new Error('src/lib/server/boot.ts is server-only')
@@ -44,31 +44,15 @@ export function seedAgents(): void {
     name: 'Payment agent',
     kind: 'payment',
     status: existingPayment?.status ?? 'running',
-    config_json: JSON.stringify({ executor: serverEnv.paymentExecutor(), token: 'EURC', chain: 'sepolia', executable_id: process.env.THYME_EXECUTABLE_ID ?? null }),
+    config_json: JSON.stringify({ executor: serverEnv.paymentExecutor(), rail: 'Thyme Flow', token: 'EURC', chain: 'sepolia' }),
   })
 }
 
 async function configureService(): Promise<void> {
+  // Per-beneficiary limits are enforced by the agent (checks/budget.ts + payments/runner.ts); the chain
+  // only guarantees EURC.transfer from the Safe through Thyme, so there is no on-chain allowance to read.
   const { configureAgentService } = await import('../agent/service')
-  const { agentEnv } = await import('../agent/env')
-  const offline = agentEnv.offline()
-  configureAgentService({
-    readAllowance: async (beneficiary) => {
-      if (offline || !beneficiary.wallet) return null
-      const rolesProxy = settings.get('rolesProxy')
-      const roleKey = settings.get('roleKey')
-      if (!rolesProxy || !roleKey) return null
-      const { getPublicClient } = await import('../chain/clients')
-      const { remainingFor, toAllowanceSnapshot } = await import('../roles/allowance')
-      const { getAddress } = await import('viem')
-      const budget = await remainingFor(getPublicClient(), {
-        rolesProxy: getAddress(rolesProxy),
-        roleKey: roleKey as `0x${string}`,
-        wallet: getAddress(beneficiary.wallet),
-      })
-      return toAllowanceSnapshot(budget)
-    },
-  })
+  configureAgentService({})
 }
 
 async function tick(state: BootState): Promise<void> {

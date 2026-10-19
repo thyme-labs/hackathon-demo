@@ -16,12 +16,10 @@ export const THYME_TOKEN_HEADER = 'X-Thyme-Token'
 export const pendingPayoutSchema = z.object({
   payoutId: z.string().min(1),
   invoiceId: z.string().min(1),
-  invoiceNumber: z.string().nullable(),
-  beneficiaryId: z.string().nullable(),
-  to: z.string().nullable(),
+  /** beneficiary wallet on file */
+  wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  /** EURC base units (6 dp) as a decimal string */
   amountEurc: z.string().regex(/^[0-9]+$/, 'EURC base units as a decimal string'),
-  amountEur: z.number(),
-  createdAt: z.string(),
 })
 
 export const pendingResponseSchema = z.object({
@@ -33,8 +31,8 @@ export const pendingResponseSchema = z.object({
 /** Identical to the Callback schema in src/routes/api/webhooks/thyme.ts. */
 export const thymeCallbackSchema = z.object({
   executionId: z.string().min(1),
-  invoiceId: z.string().min(1).optional(),
   payoutId: z.string().min(1).optional(),
+  invoiceId: z.string().min(1).optional(),
   txHash: z
     .string()
     .regex(/^0x[0-9a-fA-F]{64}$/)

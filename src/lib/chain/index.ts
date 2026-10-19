@@ -1,4 +1,4 @@
-// Browser-safe exports only. agentSigner.ts is server-only: import it directly from server code.
+// Browser-safe, read-only chain helpers (balances, Safe discovery/verification). The app holds no signer.
 export * from './balances';
 export * from './clients';
 export * from './safe';

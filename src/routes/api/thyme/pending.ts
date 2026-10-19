@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 /**
- * GET /api/thyme/pending — work for the Thyme Flow `payroll-run` task.
- * Returns pending payouts (executor=thyme) whose invoice is approved. Secured by X-Thyme-Token when
+ * GET /api/thyme/pending — work for the Thyme Flow `pay-invoice` task.
+ * Returns pending payouts (executor=thyme) whose invoice is approved, oldest first, as
+ * { payoutId, invoiceId, wallet, amountEurc } rows (amountEurc = EURC base units, 6 dp, decimal
+ * string). Rows without a wallet on file are left out. Secured by X-Thyme-Token when
  * THYME_PULL_TOKEN is set; open in dev when it is empty.
  */
 export const Route = createFileRoute('/api/thyme/pending')({
@@ -21,16 +23,14 @@ export const Route = createFileRoute('/api/thyme/pending')({
           {
             token: 'EURC',
             chainId: 11155111,
-            payouts: rows.map((p) => ({
-              payoutId: p.id,
-              invoiceId: p.invoice_id,
-              invoiceNumber: p.invoice_number,
-              beneficiaryId: p.beneficiary_id,
-              to: p.payee_wallet,
-              amountEurc: p.amount_eurc,
-              amountEur: p.amount_eur,
-              createdAt: p.created_at,
-            })),
+            payouts: rows
+              .filter((p) => Boolean(p.payee_wallet))
+              .map((p) => ({
+                payoutId: p.id,
+                invoiceId: p.invoice_id,
+                wallet: p.payee_wallet,
+                amountEurc: p.amount_eurc,
+              })),
           },
           { headers: { 'cache-control': 'no-store' } },
         )

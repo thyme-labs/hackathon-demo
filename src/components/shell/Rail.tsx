@@ -7,6 +7,7 @@ import {
   type LucideIcon,
   PieChart,
   Settings,
+  ShieldCheck,
   Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -23,6 +24,7 @@ interface RailItem {
 
 const NAV: RailItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
+  { to: '/onboarding', label: 'Enable payroll (Safe + Thyme)', icon: ShieldCheck },
   { to: '/invoices', label: 'Invoices', icon: FileText },
   { to: '/beneficiaries', label: 'Beneficiaries', icon: Users },
   { to: '/agents', label: 'Agents', icon: Bot },

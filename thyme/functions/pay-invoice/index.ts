@@ -1,14 +1,15 @@
 import { defineTask, type JsonObject, type JsonValue, type ThymeContext, z } from '@thyme-labs/sdk'
-import { type Address, encodeFunctionData, erc20Abi, formatUnits, getAddress, isAddress, parseUnits } from 'viem'
+import { type Address, encodeFunctionData, erc20Abi, formatUnits, getAddress, isAddress } from 'viem'
 
 /**
  * pay-invoice: one EURC transfer per run.
  *
  * 1. GET {apiUrl}/api/thyme/pending (header X-Thyme-Token) -> approved payouts, oldest first.
- * 2. Take the first one, or the one named by args.invoiceId (webhook runs).
- * 3. POST "submitted" to {apiUrl}/api/webhooks/thyme, return EURC.transfer(payee, amount);
- *    Thyme executes it through the Roles profile on the Safe.
- * 4. onSuccess / onFail POST "confirmed" / "reverted" | "failed" to the same route.
+ * 2. Take the first one (or the one named by args.invoiceId on webhook runs), remember its
+ *    payoutId in ctx.storage, POST "submitted" to {apiUrl}/api/webhooks/thyme and return
+ *    EURC.transfer(wallet, amountEurc). Thyme executes it through the Roles profile on the Safe.
+ * 3. onSuccess POSTs { payoutId, invoiceId, txHash, status: 'confirmed' }; onFail POSTs
+ *    status 'failed' with the reason, both to the same route with the same token header.
  *
  * Roles profiles submit one call per run, so one payout per run by design.
  * The task never holds a key; Thyme signs through the customer-owned Safe.
@@ -23,6 +24,7 @@ const SEPOLIA_CHAIN_ID = 11155111
 const HTTP_TIMEOUT_MS = 8_000
 const PAID_HISTORY_SIZE = 50
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/
+const BASE_UNITS = /^[0-9]+$/
 
 const schema = z.object({
   /** Origin of the payroll app, e.g. https://payroll.example.com */
@@ -39,16 +41,14 @@ const schema = z.object({
 type Args = (typeof schema)['_output']
 type Ctx = ThymeContext<Args>
 
+/** One row of GET /api/thyme/pending. Extra keys are ignored. */
 const pendingPayoutSchema = z.object({
   payoutId: z.string().min(1),
   invoiceId: z.string().min(1),
-  invoiceNumber: z.string().nullable().optional(),
-  beneficiaryId: z.string().nullable().optional(),
-  /** payee wallet; null when the invoice has none */
-  to: z.string().nullable(),
+  /** payee wallet on file */
+  wallet: z.string().min(1),
   /** EURC base units (6 dp) as a decimal string, e.g. "600000000" for 600.00 EURC */
-  amountEurc: z.string().min(1),
-  amountEur: z.number().nullable().optional(),
+  amountEurc: z.string().regex(BASE_UNITS),
 })
 const pendingResponseSchema = z.object({
   token: z.string().optional(),
@@ -57,9 +57,9 @@ const pendingResponseSchema = z.object({
 })
 type PendingPayout = (typeof pendingPayoutSchema)['_output']
 
-type Payable = { payoutId: string; invoiceId: string; label: string; payee: Address; amount: bigint }
+type Payable = { payoutId: string; invoiceId: string; wallet: Address; amount: bigint }
 
-type CallbackStatus = 'submitted' | 'confirmed' | 'failed' | 'reverted'
+type CallbackStatus = 'submitted' | 'confirmed' | 'failed'
 type CallbackPayload = { executionId: string; status: CallbackStatus } & Record<string, JsonValue>
 
 function describe(error: unknown): string {
@@ -91,7 +91,7 @@ function readNumber(storage: JsonObject, key: string): number {
 }
 
 function readPaid(storage: JsonObject): string[] {
-  const value = storage.paidInvoiceIds
+  const value = storage.paidPayoutIds
   if (!Array.isArray(value)) return []
   return value.filter((item): item is string => typeof item === 'string')
 }
@@ -105,27 +105,17 @@ function executionIdFor(account: Address, seq: number): string {
   return `flow-${seq}-${account.slice(2, 10).toLowerCase()}`
 }
 
-/** "600000000" (base units) or "600.5" (human) -> base units. */
-function parseAmount(text: string): bigint | undefined {
-  try {
-    return text.includes('.') ? parseUnits(text, EURC_DECIMALS) : BigInt(text)
-  } catch {
-    return undefined
-  }
-}
-
 function toPayable(ctx: Ctx, item: PendingPayout): Payable | undefined {
-  const label = item.invoiceNumber ?? item.invoiceId
-  if (!item.to || !isAddress(item.to)) {
-    ctx.logger.warn(`Invoice ${label}: payee wallet missing or invalid, leaving it in the queue`)
+  if (!isAddress(item.wallet)) {
+    ctx.logger.warn(`Payout ${item.payoutId}: wallet "${item.wallet}" is not an address, leaving it in the queue`)
     return undefined
   }
-  const amount = parseAmount(item.amountEurc)
-  if (amount === undefined || amount <= 0n) {
-    ctx.logger.warn(`Invoice ${label}: amount "${item.amountEurc}" is not a positive EURC amount`)
+  const amount = BigInt(item.amountEurc)
+  if (amount <= 0n) {
+    ctx.logger.warn(`Payout ${item.payoutId}: amount "${item.amountEurc}" is not a positive EURC amount`)
     return undefined
   }
-  return { payoutId: item.payoutId, invoiceId: item.invoiceId, label, payee: getAddress(item.to), amount }
+  return { payoutId: item.payoutId, invoiceId: item.invoiceId, wallet: getAddress(item.wallet), amount }
 }
 
 async function fetchPending(ctx: Ctx): Promise<Payable[]> {
@@ -212,16 +202,16 @@ export default defineTask({
       }
     }
 
-    // Double-pay guard. lastInvoiceId / paidInvoiceIds are only committed after a
+    // Double-pay guard. lastPayoutId / paidPayoutIds are only committed after a
     // confirmed transfer, so a hit means the app has not acknowledged a payment yet.
     const alreadyPaid =
-      readPaid(ctx.storage).includes(payout.invoiceId) || readString(ctx.storage, 'lastInvoiceId') === payout.invoiceId
+      readPaid(ctx.storage).includes(payout.payoutId) || readString(ctx.storage, 'lastPayoutId') === payout.payoutId
     if (alreadyPaid) {
       const lastTx = readString(ctx.storage, 'lastTxHash') ?? 'unknown tx'
-      logger.warn(`Invoice ${payout.invoiceId} was already paid by this executable (${lastTx})`)
+      logger.warn(`Payout ${payout.payoutId} was already paid by this executable (${lastTx})`)
       return {
         canExec: false,
-        message: `Invoice ${payout.invoiceId} already paid by this executable; refusing to pay twice`,
+        message: `Payout ${payout.payoutId} already paid by this executable; refusing to pay twice`,
       }
     }
 
@@ -230,29 +220,29 @@ export default defineTask({
       const shortfall = await safeShortfall(ctx, ctx.args.safeAddress, payout.amount)
       if (shortfall !== undefined) {
         const held = formatUnits(shortfall, EURC_DECIMALS)
-        logger.error(`Safe ${ctx.args.safeAddress} holds ${held} EURC, invoice needs ${human}`)
+        logger.error(`Safe ${ctx.args.safeAddress} holds ${held} EURC, payout needs ${human}`)
         return { canExec: false, message: `Insufficient EURC in the Safe (${held} < ${human})` }
       }
     }
 
     const seq = readNumber(ctx.storage, 'runSeq') + 1
     const executionId = executionIdFor(ctx.account, seq)
-    logger.info(`Paying ${human} EURC to ${payout.payee} for invoice ${payout.label} (run ${executionId})`)
+    logger.info(`Paying ${human} EURC to ${payout.wallet} for invoice ${payout.invoiceId} (payout ${payout.payoutId}, run ${executionId})`)
     logger.info(`Execution account ${ctx.account}; one transfer per run`)
 
     ctx.storage.runSeq = seq
     ctx.storage.lastExecutionId = executionId
-    ctx.storage.lastInvoiceId = payout.invoiceId
     ctx.storage.lastPayoutId = payout.payoutId
-    ctx.storage.lastPayee = payout.payee
+    ctx.storage.lastInvoiceId = payout.invoiceId
+    ctx.storage.lastWallet = payout.wallet
     ctx.storage.lastAmountEurc = payout.amount.toString()
     ctx.storage.lastRunAt = new Date().toISOString()
 
     await notify(ctx, {
       executionId,
       status: 'submitted',
-      invoiceId: payout.invoiceId,
       payoutId: payout.payoutId,
+      invoiceId: payout.invoiceId,
       account: ctx.account,
       amountEurc: payout.amount.toString(),
     })
@@ -265,7 +255,7 @@ export default defineTask({
           data: encodeFunctionData({
             abi: erc20Abi,
             functionName: 'transfer',
-            args: [payout.payee, payout.amount],
+            args: [payout.wallet, payout.amount],
           }),
         },
       ],
@@ -276,22 +266,22 @@ export default defineTask({
     // Storage here is the committed state of the successful run, so these are ours.
     const seq = readNumber(ctx.storage, 'runSeq')
     const executionId = readString(ctx.storage, 'lastExecutionId') ?? executionIdFor(ctx.account, seq)
-    const invoiceId = ctx.args.invoiceId ?? readString(ctx.storage, 'lastInvoiceId')
     const payoutId = readString(ctx.storage, 'lastPayoutId')
+    const invoiceId = ctx.args.invoiceId ?? readString(ctx.storage, 'lastInvoiceId')
 
     ctx.storage.lastTxHash = tx.txHash
     ctx.storage.lastConfirmedAt = new Date().toISOString()
-    if (invoiceId) {
-      const history = readPaid(ctx.storage).filter((id) => id !== invoiceId)
-      ctx.storage.paidInvoiceIds = [...history, invoiceId].slice(-PAID_HISTORY_SIZE)
+    if (payoutId) {
+      const history = readPaid(ctx.storage).filter((id) => id !== payoutId)
+      ctx.storage.paidPayoutIds = [...history, payoutId].slice(-PAID_HISTORY_SIZE)
     }
     ctx.logger.info(`Confirmed ${tx.txHash} in block ${tx.blockNumber} (gas ${tx.gasUsed})`)
 
     await notify(ctx, {
       executionId,
       status: 'confirmed',
-      invoiceId: invoiceId ?? null,
       payoutId: payoutId ?? null,
+      invoiceId: invoiceId ?? null,
       txHash: txHashOrNull(tx.txHash),
       userOpHash: tx.userOpHash ?? null,
       blockNumber: tx.blockNumber,
@@ -303,8 +293,8 @@ export default defineTask({
 
   async onFail(ctx, info) {
     // Storage here is the state from BEFORE the failed run (its writes were discarded), so the
-    // failed run used runSeq + 1. Recompute its id so the app can match the "submitted" callback,
-    // then advance the sequence so the next run does not reuse it.
+    // failed run used runSeq + 1 and its payoutId is gone. Recompute the id so the app can match
+    // the "submitted" callback, then advance the sequence so the next run does not reuse it.
     const seq = readNumber(ctx.storage, 'runSeq') + 1
     const executionId = executionIdFor(ctx.account, seq)
     ctx.storage.runSeq = seq
@@ -317,7 +307,7 @@ export default defineTask({
 
     await notify(ctx, {
       executionId,
-      status: info.stage === 'reverted' ? 'reverted' : 'failed',
+      status: 'failed',
       invoiceId: invoiceId ?? null,
       stage: info.stage,
       error: `${info.stage}: ${info.reason}`,

@@ -27,7 +27,7 @@ export function BeneficiariesPage({ initial }: { initial: BeneficiaryListItem[] 
 
   return (
     <>
-      <PageHeader title="Beneficiaries" eyebrow={`${rows.filter((r) => r.status === 'active').length} active · limits enforced on chain`} />
+      <PageHeader title="Beneficiaries" eyebrow={`${rows.filter((r) => r.status === 'active').length} active · wallet on file and 30-day limit enforced by the agent · EURC via Thyme from the Safe`} />
       <div className="mt-8 rounded-xl bg-surface">
         <Table>
           <TableHeader>

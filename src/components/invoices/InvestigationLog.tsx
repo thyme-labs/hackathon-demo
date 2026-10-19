@@ -258,7 +258,7 @@ function ActionCard({ detail, payoutSeconds, onRegister, onApprove, onRetry, onF
   }
 
   if (invoice.status === 'rejected') {
-    const reverted = payouts.find((p) => p.status === 'reverted')
+    const reverted = payouts.find((p) => p.status === 'reverted' || p.status === 'failed')
     return (
       <Card className="mt-3 animate-rise border border-blocked/30">
         <div className="flex items-start justify-between gap-4">
@@ -276,7 +276,7 @@ function ActionCard({ detail, payoutSeconds, onRegister, onApprove, onRetry, onF
             </p>
             {reverted ? (
               <div className="mt-3 rounded-lg bg-blocked/10 p-3 text-xs text-blocked">
-                <div className="font-medium">Forced anyway → chain reverted</div>
+                <div className="font-medium">{reverted.status === 'reverted' ? 'Forced anyway → chain reverted' : 'Forced anyway → payment rail refused'}</div>
                 <div className="mt-1 break-words text-blocked/80">{reverted.error}</div>
                 {reverted.tx_hash ? (
                   <div className="mt-2">

@@ -14,6 +14,7 @@ import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as BeneficiariesRouteImport } from './routes/beneficiaries'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as InvoicesRouteImport } from './routes/invoices'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PayoutsRouteImport } from './routes/payouts'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -49,6 +50,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const InvoicesRoute = InvoicesRouteImport.update({
   id: '/invoices',
   path: '/invoices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PayoutsRoute = PayoutsRouteImport.update({
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/beneficiaries': typeof BeneficiariesRoute
   '/dashboard': typeof DashboardRoute
   '/invoices': typeof InvoicesRoute
+  '/onboarding': typeof OnboardingRoute
   '/payouts': typeof PayoutsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/beneficiaries': typeof BeneficiariesRoute
   '/dashboard': typeof DashboardRoute
   '/invoices': typeof InvoicesRoute
+  '/onboarding': typeof OnboardingRoute
   '/payouts': typeof PayoutsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/beneficiaries': typeof BeneficiariesRoute
   '/dashboard': typeof DashboardRoute
   '/invoices': typeof InvoicesRoute
+  '/onboarding': typeof OnboardingRoute
   '/payouts': typeof PayoutsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -171,6 +180,7 @@ export interface FileRouteTypes {
     | '/beneficiaries'
     | '/dashboard'
     | '/invoices'
+    | '/onboarding'
     | '/payouts'
     | '/reports'
     | '/settings'
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/beneficiaries'
     | '/dashboard'
     | '/invoices'
+    | '/onboarding'
     | '/payouts'
     | '/reports'
     | '/settings'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/beneficiaries'
     | '/dashboard'
     | '/invoices'
+    | '/onboarding'
     | '/payouts'
     | '/reports'
     | '/settings'
@@ -226,6 +238,7 @@ export interface RootRouteChildren {
   BeneficiariesRoute: typeof BeneficiariesRoute
   DashboardRoute: typeof DashboardRoute
   InvoicesRoute: typeof InvoicesRoute
+  OnboardingRoute: typeof OnboardingRoute
   PayoutsRoute: typeof PayoutsRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
@@ -274,6 +287,13 @@ declare module '@tanstack/react-router' {
       path: '/invoices'
       fullPath: '/invoices'
       preLoaderRoute: typeof InvoicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/payouts': {
@@ -362,6 +382,7 @@ const rootRouteChildren: RootRouteChildren = {
   BeneficiariesRoute: BeneficiariesRoute,
   DashboardRoute: DashboardRoute,
   InvoicesRoute: InvoicesRoute,
+  OnboardingRoute: OnboardingRoute,
   PayoutsRoute: PayoutsRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,

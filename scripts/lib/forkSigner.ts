@@ -1,3 +1,6 @@
+// FORK TEST ONLY (scripts/fork-test.ts). Not part of the product: the payroll app holds no private key and
+// pays only through Thyme Flow. This signer drives anvil's public default accounts on a local Sepolia fork to
+// prove the Zodiac Roles encoders in src/lib/roles. AGENT_PRIVATE_KEY here is an anvil key passed by the script.
 // SERVER ONLY. Never import from a route component or anything that ends up in the browser bundle.
 // The agent EOA (AGENT_PRIVATE_KEY, testnet only) is the Roles member that pays invoices through
 // rolesProxy.execTransactionWithRole. Reverts are broadcast with explicit gas so a blocked payout lands
@@ -14,17 +17,17 @@ import {
 } from 'viem';
 import { type PrivateKeyAccount, privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
-import { rolesAbi } from '../roles/abi';
-import { EURC } from '../roles/constants';
-import { type DecodedRolesRevert, explainRevert, type KnownKeys } from '../roles/errors';
-import { buildPayoutCall } from '../roles/payout';
+import { rolesAbi } from '../../src/lib/roles/abi';
+import { EURC } from '../../src/lib/roles/constants';
+import { type DecodedRolesRevert, explainRevert, type KnownKeys } from '../../src/lib/roles/errors';
+import { buildPayoutCall } from '../../src/lib/roles/payout';
 import {
   createSepoliaPublicClient,
   explorerTxUrl,
   getPublicClient,
   resolveRpcUrl,
   type SepoliaPublicClient,
-} from './clients';
+} from '../../src/lib/chain/clients';
 
 /** Enough for a payout that reverts inside the Roles checker (~70-90k observed) and for success at ~10 payees (~300k). */
 export const DEFAULT_PAYOUT_GAS_LIMIT = 400_000n;

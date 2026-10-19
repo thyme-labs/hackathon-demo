@@ -38,6 +38,19 @@ export const Route = createFileRoute('/api/webhooks/thyme')({
         if (!payout) return Response.json({ error: 'payout not found' }, { status: 404 })
 
         const ts = nowIso()
+        const settled = payout.status === 'confirmed' || payout.status === 'failed' || payout.status === 'reverted'
+        if (settled) {
+          // Already settled (by an earlier callback or by the payment agent reading Thyme's result):
+          // keep the verdict, only fill in transaction details the row is missing. Never pay twice.
+          const merged = payouts.update(payout.id, {
+            thyme_execution_id: payout.thyme_execution_id ?? body.executionId,
+            tx_hash: payout.tx_hash ?? body.txHash ?? null,
+            block_number: payout.block_number ?? body.blockNumber ?? null,
+            gas_used: payout.gas_used ?? body.gasUsed ?? null,
+          })
+          appendAudit({ actor: 'thyme', event: 'payout.callback_after_settlement', invoiceId: payout.invoice_id, beneficiaryId: payout.beneficiary_id, details: { payoutId: payout.id, executionId: body.executionId, callback: body.status, kept: payout.status } })
+          return Response.json({ ok: true, payout: merged, ignored: true })
+        }
         const updated = payouts.setStatus(payout.id, body.status, {
           thyme_execution_id: body.executionId,
           tx_hash: body.txHash ?? payout.tx_hash,

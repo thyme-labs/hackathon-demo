@@ -25,7 +25,8 @@ export const agentEnv = {
   tatumApiKey: () => read('TATUM_API_KEY'),
   apifyToken: () => read('APIFY_TOKEN'),
   mostlyRightApiKey: () => read('MOSTLYRIGHT_API_KEY'),
-  paymentExecutor: (): 'thyme' | 'direct' => (read('PAYMENT_EXECUTOR') === 'thyme' ? 'thyme' : 'direct'),
+  /** 'thyme' (default) or 'simulated'. The payout rows always carry executor 'thyme'; `simulated` is a per-row flag. */
+  paymentExecutor: (): 'thyme' | 'simulated' => ((read('PAYMENT_EXECUTOR') ?? 'thyme').toLowerCase() === 'simulated' ? 'simulated' : 'thyme'),
   autoPayThreshold: (): number => {
     const n = Number(read('AUTO_PAY_THRESHOLD') ?? '100')
     return Number.isFinite(n) ? n : 100

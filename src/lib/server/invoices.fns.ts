@@ -3,7 +3,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import type { ChecklistSnapshot } from '../agent/types'
 import type { Beneficiary } from '../store/types'
-import type { DemoInvoiceItem, ExtractedView, InvoiceDetail, InvoiceListItem, MandatePlan } from './dto'
+import type { DemoInvoiceItem, ExtractedView, InvoiceDetail, InvoiceListItem, RegistrationPlan } from './dto'
 
 const PROVIDER_LABELS: Record<string, string> = {
   bedrock: 'Claude on Amazon Bedrock',
@@ -36,10 +36,11 @@ export const getInvoice = createServerFn({ method: 'GET', strict: false })
   .handler(async ({ data }): Promise<InvoiceDetail | null> => {
     const { ensureBooted } = await import('./boot')
     ensureBooted()
-    const { invoices, payouts, audit, beneficiaries, settings } = await import('../store/repos')
+    const { invoices, payouts, audit, beneficiaries } = await import('../store/repos')
     const { parseChecklist } = await import('../agent/checklist')
     const { serverEnv } = await import('../env')
     const { resolveExecutionMode } = await import('../payments/runner')
+    const { readOnboardingState, isOnboarded } = await import('./thymeOnboarding')
     const invoice = invoices.get(data.id)
     if (!invoice) return null
     let extracted: ExtractedView | null = null
@@ -51,7 +52,8 @@ export const getInvoice = createServerFn({ method: 'GET', strict: false })
       }
     }
     const provider = serverEnv.llmProvider()
-    const all = settings.all()
+    const state = readOnboardingState()
+    const onboarded = isOnboarded(state)
     return {
       invoice,
       checklist: parseChecklist(invoice.checklist_json),
@@ -61,7 +63,7 @@ export const getInvoice = createServerFn({ method: 'GET', strict: false })
       audit: audit.list({ invoiceId: invoice.id, limit: 100 }),
       provider: { name: provider, label: PROVIDER_LABELS[provider] ?? provider },
       executionMode: await resolveExecutionMode(serverEnv.paymentExecutor()),
-      mandate: { safeAddress: all.safeAddress ?? null, rolesProxy: all.rolesProxy ?? null, roleKey: all.roleKey ?? null },
+      rail: { safeAddress: state.safeAddress, profileId: state.profileId, onboarded, simulated: !onboarded && Boolean(state.simulatedAt) },
     }
   })
 
@@ -142,16 +144,16 @@ export interface ApproveBeneficiaryInput {
 
 export interface ApproveBeneficiaryResult {
   beneficiary: Beneficiary
-  plan: MandatePlan
+  plan: RegistrationPlan
 }
 
-/** Creates (or updates) the beneficiary for a held invoice and returns the Safe tx the owner signs. */
+/** Creates (or updates) the beneficiary for a held invoice and describes what registering it means (no Safe tx). */
 export const approveBeneficiary = createServerFn({ method: 'POST' })
   .validator((input: ApproveBeneficiaryInput) => input)
   .handler(async ({ data }): Promise<ApproveBeneficiaryResult> => {
     const { isAddress, getAddress } = await import('viem')
     const { invoices, beneficiaries, appendAudit } = await import('../store/repos')
-    const { planRegisterPayee } = await import('./mandate')
+    const { planRegistration } = await import('./registration')
     const { demoOwnershipProofFor } = await import('./demo')
     if (!isAddress(data.wallet)) throw new Error('wallet is not a valid address')
     if (!(data.monthlyLimitEur > 0)) throw new Error('monthly limit must be positive')
@@ -179,57 +181,42 @@ export const approveBeneficiary = createServerFn({ method: 'POST' })
       beneficiaryId: beneficiary.id,
       details: { name: beneficiary.name, wallet, monthly_limit_eur: data.monthlyLimitEur, country: beneficiary.country },
     })
-    const plan = await planRegisterPayee(beneficiary, data.monthlyLimitEur)
+    const plan = await planRegistration(beneficiary, data.monthlyLimitEur)
     return { beneficiary, plan }
   })
 
-export interface ConfirmInstallInput {
+export interface RegisterBeneficiaryInput {
   invoiceId: string
   beneficiaryId: string
-  mode: 'install' | 'add_payee' | 'none'
-  txHash: string | null
-  rolesProxy: string | null
-  roleKey: string | null
-  mandateId: string | null
-  simulated: boolean
 }
 
-/** After the owner's Safe tx (or its simulation): persist the mandate, activate the payee, approve the invoice. */
-export const confirmInstall = createServerFn({ method: 'POST' })
-  .validator((input: ConfirmInstallInput) => input)
+/**
+ * Owner confirmed the registration: activate the payee with its agent-enforced limit and approve the
+ * invoice (the payment agent then hands the payout to Thyme, or records a labelled simulated payout).
+ * No Safe transaction: the rail was scoped once, at onboarding.
+ */
+export const registerBeneficiary = createServerFn({ method: 'POST' })
+  .validator((input: RegisterBeneficiaryInput) => input)
   .handler(async ({ data }): Promise<{ payoutId: string | null; invoiceStatus: string }> => {
-    const { invoices, beneficiaries, settings, appendAudit, agents } = await import('../store/repos')
+    const { invoices, beneficiaries, appendAudit, agents } = await import('../store/repos')
     const { approveInvoice } = await import('../agent/service')
     const { runPaymentsOnce } = await import('../payments/runner')
-    const { resolveAgentAddress } = await import('./mandate')
+    const { readOnboardingState, isReadyToPay } = await import('./thymeOnboarding')
     const invoice = invoices.get(data.invoiceId)
     if (!invoice) throw new Error('invoice not found')
     const beneficiary = beneficiaries.get(data.beneficiaryId)
     if (!beneficiary) throw new Error('beneficiary not found')
+    const state = readOnboardingState()
+    const ready = isReadyToPay(state)
 
-    if (data.mode !== 'none') {
-      if (!data.simulated && data.txHash) {
-        if (data.mode === 'install') {
-          settings.set('rolesProxy', data.rolesProxy)
-          settings.set('roleKey', data.roleKey)
-          settings.set('mandateId', data.mandateId)
-          settings.set('installTxHash', data.txHash)
-          const agent = await resolveAgentAddress()
-          if (agent) settings.set('agentAddress', agent)
-        }
-      } else {
-        settings.set('mandateSimulated', JSON.stringify({ mode: data.mode, rolesProxy: data.rolesProxy, roleKey: data.roleKey, mandateId: data.mandateId, at: new Date().toISOString() }))
-      }
-      appendAudit({
-        actor: data.simulated ? 'owner' : 'chain',
-        event: data.mode === 'install' ? 'mandate.installed' : 'mandate.payee_added',
-        invoiceId: invoice.id,
-        beneficiaryId: beneficiary.id,
-        details: { tx_hash: data.txHash, roles_proxy: data.rolesProxy, role_key: data.roleKey, mandate_id: data.mandateId, simulated: data.simulated, limit_eur: beneficiary.monthly_limit_eur },
-      })
-    }
     beneficiaries.update(beneficiary.id, { status: 'active', trust_score: Math.max(beneficiary.trust_score, 70) })
-    appendAudit({ actor: 'owner', event: 'beneficiary.activated', invoiceId: invoice.id, beneficiaryId: beneficiary.id, details: { wallet: beneficiary.wallet, monthly_limit_eur: beneficiary.monthly_limit_eur } })
+    appendAudit({
+      actor: 'owner',
+      event: 'beneficiary.activated',
+      invoiceId: invoice.id,
+      beneficiaryId: beneficiary.id,
+      details: { wallet: beneficiary.wallet, monthly_limit_eur: beneficiary.monthly_limit_eur, enforcement: 'agent', rail: ready ? (state.simulatedAt && !state.webhookUrl ? 'simulated' : 'thyme') : 'not onboarded' },
+    })
 
     let payoutId: string | null = null
     if (invoice.status === 'needs_approval' || invoice.status === 'rejected' || invoice.status === 'failed') {

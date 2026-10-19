@@ -14,6 +14,7 @@ export type InvoiceStatus =
   | 'paid'
   | 'failed'
 export type PayoutStatus = 'pending' | 'submitted' | 'confirmed' | 'failed' | 'reverted'
+/** Rail recorded on a payout row. Only 'thyme' is written today; 'direct' survives on rows from before the agent key was retired. */
 export type PaymentExecutor = 'thyme' | 'direct'
 export type AuditActor = 'agent' | 'owner' | 'thyme' | 'chain'
 

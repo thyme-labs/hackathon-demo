@@ -1,12 +1,12 @@
 import { type CheckContext, type CheckSpec, eur, makeResult } from './context'
 
-const spec = { id: 'budget', label: 'Within monthly limit', enforcement: 'chain', weight: 10 } as const
+const spec = { id: 'budget', label: 'Within monthly limit', enforcement: 'agent', weight: 10 } as const
 
 const EURC_DECIMALS = 6
 
 export const run = async (ctx: CheckContext) => {
   const b = ctx.beneficiary
-  const source = 'beneficiary limit + payouts (30-day rolling) + Roles allowances(key) when readable'
+  const source = 'beneficiary limit + payouts (30-day rolling); enforced again by the payment agent before Thyme is called'
   if (!b) {
     return makeResult(spec, ctx, { status: 'skip', evidence: 'No beneficiary yet; the owner sets the monthly limit when approving.', source })
   }
@@ -30,11 +30,11 @@ export const run = async (ctx: CheckContext) => {
     }
   }
   const data = { amountEur, limit: b.monthly_limit_eur, spent30d: spent, remainingOffChain, onChain }
-  const chainNote = onChain ? `; on-chain allowance remaining ${eur(onChain.remaining)} (Roles, ${onChain.period ? `${Math.round(onChain.period / 86_400)}-day refill` : 'one-off'})` : '; on-chain allowance not read'
+  const chainNote = onChain ? `; on-chain allowance remaining ${eur(onChain.remaining)} (Roles, ${onChain.period ? `${Math.round(onChain.period / 86_400)}-day refill` : 'one-off'})` : ''
   if (amountEur > remainingOffChain) {
     return makeResult(spec, ctx, {
       status: 'fail',
-      evidence: `${eur(amountEur)} exceeds the remaining limit ${eur(remainingOffChain)} (limit ${eur(b.monthly_limit_eur)}/30d, ${eur(spent)} paid)${chainNote}. The chain would revert this transfer.`,
+      evidence: `${eur(amountEur)} exceeds the remaining limit ${eur(remainingOffChain)} (limit ${eur(b.monthly_limit_eur)}/30d, ${eur(spent)} paid)${chainNote}. The payment agent will not hand this transfer to Thyme.`,
       source,
       data,
     })
@@ -42,7 +42,7 @@ export const run = async (ctx: CheckContext) => {
   if (onChain && amountEur > onChain.remaining) {
     return makeResult(spec, ctx, {
       status: 'fail',
-      evidence: `${eur(amountEur)} exceeds the on-chain allowance ${eur(onChain.remaining)} even though the off-chain ledger shows ${eur(remainingOffChain)} left; the chain would revert.`,
+      evidence: `${eur(amountEur)} exceeds the on-chain allowance ${eur(onChain.remaining)} even though the ledger shows ${eur(remainingOffChain)} left; the payment agent will not hand it to Thyme.`,
       source,
       data,
     })

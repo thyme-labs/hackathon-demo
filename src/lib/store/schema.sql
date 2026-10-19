@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS payouts (
   cnb_rate           REAL,
   cnb_valid_for      TEXT,
   amount_czk         REAL,
+  -- Thyme Flow is the only rail; 'direct' only remains for rows written before the agent key was retired.
+  -- A payout recorded without a chain transaction carries simulated = 1 (migration 001), not another executor.
   executor           TEXT NOT NULL CHECK (executor IN ('thyme', 'direct')),
   thyme_execution_id TEXT,
   tx_hash            TEXT,

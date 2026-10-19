@@ -105,7 +105,8 @@ export const enqueuePayout = (
     cnb_rate: cnb?.czkPerUnit ?? null,
     cnb_valid_for: cnb?.validFor ?? null,
     amount_czk: czkLeg(amountEur, cnb ? { currencyCode: 'EUR', czkPerUnit: cnb.czkPerUnit, validFor: cnb.validFor, requestedDate: cnb.validFor, source: 'cnb' } : null),
-    executor: agentEnv.paymentExecutor(),
+    // Thyme Flow is the only rail; a payout recorded without a chain transaction carries simulated = 1 instead.
+    executor: 'thyme',
     status: 'pending',
   }
   const row = deps.store.createPayout(payout)

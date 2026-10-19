@@ -1,16 +1,7 @@
 import type { Hex } from 'viem'
-import { PayoutRejectedError, sendPayout } from '../chain/agentSigner'
 import { pollUntilTerminal, pollWebhookResult, triggerPayout } from './client'
 import { getThymeEnv } from './env'
-import type {
-  ExecutePayoutOptions,
-  ExecutePayoutResult,
-  PayoutExecutionStatus,
-  PayoutRequest,
-  ThymeExecution,
-} from './types'
-
-type Outcome = Pick<ExecutePayoutResult, 'status' | 'txHash' | 'error'>
+import type { ExecutePayoutOptions, ExecutePayoutResult, PayoutExecutionStatus, PayoutRequest, ThymeRunOutcome } from './types'
 
 /** Thyme execution state -> payouts.status vocabulary. */
 export function mapExecutionStatus(status: string): PayoutExecutionStatus {
@@ -29,102 +20,81 @@ export function mapExecutionStatus(status: string): PayoutExecutionStatus {
   }
 }
 
-function fromExecution(execution: ThymeExecution, terminal: boolean): Outcome {
-  return {
-    status: terminal ? mapExecutionStatus(execution.status) : 'submitted',
-    txHash: execution.txHash,
-    error: execution.error,
-  }
-}
-
 function isSettled(status: PayoutExecutionStatus): boolean {
   return status === 'confirmed' || status === 'failed' || status === 'reverted' || status === 'skipped'
 }
 
-async function executeViaThyme(payout: PayoutRequest, options: ExecutePayoutOptions): Promise<ExecutePayoutResult> {
-  const trigger = await triggerPayout(payout.invoiceId, {
+function fromOutcome(outcome: ThymeRunOutcome): Pick<ExecutePayoutResult, 'status' | 'txHash' | 'blockNumber' | 'gasUsed' | 'error'> {
+  return {
+    status: mapExecutionStatus(outcome.status),
+    txHash: outcome.txHash,
+    blockNumber: outcome.blockNumber,
+    gasUsed: outcome.gasUsed,
+    error: outcome.error,
+  }
+}
+
+/**
+ * Send one payout through Thyme Flow: trigger the pay-invoice executable (webhook, or a
+ * management run) and, by default, wait for confirmed | failed | skipped. The task itself also
+ * posts submitted / confirmed / failed to /api/webhooks/thyme, so the app stays correct when the
+ * wait times out. The app holds no key: Thyme executes through the Roles profile on the Safe.
+ */
+export async function executePayout(payout: PayoutRequest, options: ExecutePayoutOptions = {}): Promise<ExecutePayoutResult> {
+  const first = await triggerPayout(payout.invoiceId, {
+    webhookUrl: options.webhookUrl,
     attempt: options.attempt,
     appUrl: options.appUrl,
     safeAddress: options.safeAddress,
+    pullToken: options.pullToken,
     respondAsync: options.respondAsync,
+    timeoutMs: options.timeoutMs,
   })
 
-  let outcome: Outcome = {
-    status: mapExecutionStatus(trigger.status),
-    txHash: trigger.txHash,
-    error: trigger.error,
-  }
-  let execution: ThymeExecution | undefined
+  let outcome = fromOutcome(first)
+  let raw: unknown = first.raw
 
   if ((options.waitForConfirmation ?? true) && !isSettled(outcome.status)) {
-    const current = getThymeEnv()
-    if (trigger.executionId && current.apiKey) {
-      const polled = await pollUntilTerminal(trigger.executionId, { timeoutMs: options.timeoutMs })
-      execution = polled.execution
-      outcome = fromExecution(execution, polled.terminal)
-    } else if (trigger.resultUrl) {
-      const polled = await pollWebhookResult(trigger.resultUrl, { timeoutMs: options.timeoutMs })
-      execution = polled.execution
-      outcome = fromExecution(execution, polled.terminal)
+    if (first.resultUrl) {
+      const polled = await pollWebhookResult(first.resultUrl, { timeoutMs: options.timeoutMs })
+      const asOutcome = polledOutcome(polled.data, first)
+      outcome = fromOutcome(asOutcome)
+      raw = polled.data
+    } else if (getThymeEnv().apiKey) {
+      const polled = await pollUntilTerminal(first.executionId, { timeoutMs: options.timeoutMs })
+      outcome = {
+        status: polled.terminal ? mapExecutionStatus(polled.execution.status) : 'submitted',
+        txHash: polled.execution.txHash,
+        blockNumber: polled.execution.blockNumber,
+        gasUsed: polled.execution.gasUsed,
+        error: polled.execution.errorMessage,
+      }
+      raw = polled.execution
     }
   }
 
   return {
     executor: 'thyme',
     ...outcome,
-    thymeExecutionId: trigger.executionId ?? (execution?.id || undefined),
-    idempotencyKey: trigger.idempotencyKey,
-    raw: execution?.raw ?? trigger.raw,
+    thymeExecutionId: first.executionId,
+    idempotencyKey: first.idempotencyKey,
+    raw,
   }
 }
 
-async function executeDirect(payout: PayoutRequest, options: ExecutePayoutOptions): Promise<ExecutePayoutResult> {
-  if (!options.rolesProxy || !options.roleKey) {
-    throw new Error('Direct executor needs rolesProxy (Roles module on the Safe) and roleKey (agent role key)')
+function polledOutcome(data: Awaited<ReturnType<typeof pollWebhookResult>>['data'], first: ThymeRunOutcome): ThymeRunOutcome {
+  const full = 'transaction' in data ? data : undefined
+  return {
+    ...first,
+    status: data.status,
+    terminal: isSettled(mapExecutionStatus(data.status)),
+    txHash: (full?.transaction?.txHash ?? undefined) as Hex | undefined,
+    userOpHash: (full?.transaction?.userOpHash ?? undefined) as Hex | undefined,
+    blockNumber: full?.transaction?.blockNumber ?? undefined,
+    gasUsed: full?.transaction?.gasUsed ?? undefined,
+    error: full?.error?.message,
+    raw: data,
   }
-  try {
-    // src/lib/chain/agentSigner.ts: sendPayout(rolesProxy, roleKey, payee, amountEurc, opts?) -> PayoutResult.
-    // A mandate rejection resolves with status 'reverted' and a decoded revert; it does not throw.
-    const result = await sendPayout(
-      options.rolesProxy,
-      options.roleKey,
-      payout.payee,
-      payout.amountEurcUnits,
-      options.direct,
-    )
-    return {
-      executor: 'direct',
-      status: result.status === 'confirmed' ? 'confirmed' : 'reverted',
-      txHash: result.txHash,
-      blockNumber: Number(result.blockNumber),
-      gasUsed: result.gasUsed.toString(),
-      explorerUrl: result.explorerUrl,
-      error: result.error ?? result.revert?.human,
-      raw: result,
-    }
-  } catch (error) {
-    // Preflight said it would revert and forceOnRevert was false: nothing was broadcast.
-    if (error instanceof PayoutRejectedError) {
-      return { executor: 'direct', status: 'failed', error: error.revert.human, raw: error.revert }
-    }
-    throw error
-  }
-}
-
-/**
- * Send one payout through the configured rail.
- * - thyme: trigger the pay-invoice executable (webhook or management run) and, by default,
- *   wait for confirmed | failed | skipped. The task itself also posts to /api/webhooks/thyme.
- * - direct: the agent EOA calls execTransactionWithRole on our own Roles module and waits
- *   for the receipt; a revert comes back as status 'reverted' with the decoded reason.
- */
-export async function executePayout(
-  payout: PayoutRequest,
-  options: ExecutePayoutOptions = {},
-): Promise<ExecutePayoutResult> {
-  const executor = options.executor ?? getThymeEnv().paymentExecutor
-  if (executor === 'direct') return executeDirect(payout, options)
-  return executeViaThyme(payout, options)
 }
 
 export function isTxHash(value: unknown): value is Hex {

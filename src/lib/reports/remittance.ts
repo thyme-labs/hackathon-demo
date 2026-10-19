@@ -29,6 +29,7 @@ export interface RemittanceMandate {
   remainingEur?: number | null;
   mandateTxHash?: string | null;
   agentAddress?: string | null;
+  thymeProfileId?: string | null;
   thymeExecutionId?: string | null;
 }
 
@@ -214,11 +215,12 @@ export function buildRemittanceAdvice(
     mandate.roleKey ? row('Role key', mandate.roleKey, { mono: true }) : '',
     mandate.allowanceKey ? row('Allowance key', mandate.allowanceKey, { mono: true }) : '',
     mandate.capEur !== undefined && mandate.capEur !== null
-      ? row('Monthly cap (on chain)', `${money(mandate.capEur, 'EUR')}${mandate.remainingEur !== undefined && mandate.remainingEur !== null ? ` · remaining ${money(mandate.remainingEur, 'EUR')}` : ''}`)
+      ? row('Monthly cap (agent)', `${money(mandate.capEur, 'EUR')}${mandate.remainingEur !== undefined && mandate.remainingEur !== null ? ` · remaining ${money(mandate.remainingEur, 'EUR')}` : ''}`)
       : beneficiary.monthly_limit_eur
         ? row('Monthly limit', money(beneficiary.monthly_limit_eur, 'EUR'))
         : '',
-    mandate.mandateTxHash ? row('Mandate signed in', `<a href="${escapeHtml(`${etherscan}/tx/${mandate.mandateTxHash}`)}">${escapeHtml(shortHash(mandate.mandateTxHash))}</a>`, { raw: true, mono: true }) : '',
+    mandate.mandateTxHash ? row('Safe enabled in', `<a href="${escapeHtml(`${etherscan}/tx/${mandate.mandateTxHash}`)}">${escapeHtml(shortHash(mandate.mandateTxHash))}</a>`, { raw: true, mono: true }) : '',
+    mandate.thymeProfileId ? row('Thyme profile', mandate.thymeProfileId, { mono: true }) : '',
     mandate.agentAddress ? row('Agent address', mandate.agentAddress, { mono: true }) : '',
   ].join('');
 

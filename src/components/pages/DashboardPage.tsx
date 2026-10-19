@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Ban, FileText, Plus, ShieldCheck, UserPlus } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useAccount } from 'wagmi'
 import { cn } from '@/lib/utils'
 import { PageHeader, Section } from '@/components/shell/Shell'
@@ -46,7 +47,7 @@ export function DashboardPage({ initial }: { initial: DashboardView }) {
                 Safe <AddressMono value={safe} />
               </>
             ) : (
-              'Safe not configured · Settings'
+              'Safe not enabled yet'
             )}
           </span>
         }
@@ -65,6 +66,17 @@ export function DashboardPage({ initial }: { initial: DashboardView }) {
           </Button>
         }
       />
+      {!view.onboarding.ready ? (
+        <Banner tone="warn" action={<Button asChild size="sm"><Link to="/onboarding">Enable payroll</Link></Button>}>
+          Payroll is not enabled on a Safe yet. Connect the owner wallet, pick the Safe and send one transaction; Thyme then pays EURC from it and can do nothing else.
+          {!view.onboarding.configured ? ' (Thyme is not configured on this server: a labelled simulation is available.)' : ''}
+        </Banner>
+      ) : view.onboarding.simulated ? (
+        <Banner tone="info" action={<Button asChild size="sm" variant="secondary"><Link to="/onboarding">Enable for real</Link></Button>}>
+          Simulated onboarding: payouts are recorded with a labelled placeholder hash and never touch the chain.
+        </Banner>
+      ) : null}
+
       <div className="mt-6 flex flex-wrap gap-2.5">
         <TokenPill symbol="ETH" value={balances ? num(balances.eth, 4) : '—'} />
         <TokenPill symbol="EURC" value={balances ? num(balances.eurc) : '—'} />
@@ -139,6 +151,15 @@ export function DashboardPage({ initial }: { initial: DashboardView }) {
         </div>
       </Section>
     </>
+  )
+}
+
+function Banner({ tone, action, children }: { tone: 'warn' | 'info'; action: ReactNode; children: ReactNode }) {
+  return (
+    <div className={cn('mt-6 flex items-center justify-between gap-6 rounded-xl border bg-surface px-5 py-4 text-xs', tone === 'warn' ? 'border-paused/30' : 'border-hairline')}>
+      <div className={cn(tone === 'warn' ? 'text-paused' : 'text-dim')}>{children}</div>
+      <div className="shrink-0">{action}</div>
+    </div>
   )
 }
 

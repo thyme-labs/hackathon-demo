@@ -9,13 +9,13 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
   const { agents, dashboardCounts, beneficiaries, payouts, invoices, audit, settings } = await import('../store/repos')
   const { serverEnv } = await import('../env')
   const { resolveExecutionMode } = await import('../payments/runner')
-  const { resolveAgentAddress } = await import('./mandate')
+  const { buildOnboardingView } = await import('./thymeOnboarding')
   const { agentEnv } = await import('../agent/env')
   const { buildComparisonCard } = await import('../reports/comparison')
 
   const all = settings.all()
   const safeAddress = all.safeAddress ?? null
-  const agentAddress = await resolveAgentAddress()
+  const onboarding = buildOnboardingView()
   const counts = dashboardCounts()
   const active = beneficiaries.list('active')
   const paidByBen = payouts.paidThisMonthByBeneficiary()
@@ -24,7 +24,7 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
 
   let balances: DashboardView['balances'] = null
   let balancesError: string | null = null
-  const target = safeAddress ?? agentAddress
+  const target = safeAddress
   if (target && !agentEnv.offline()) {
     try {
       const { getPublicClient } = await import('../chain/clients')
@@ -39,7 +39,7 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
       balancesError = error instanceof Error ? error.message : String(error)
     }
   } else if (!target) {
-    balancesError = 'No Safe or agent address configured'
+    balancesError = 'No Safe yet: enable payroll to pick one'
   }
 
   const inv = new Map(invoices.list({ limit: 500 }).map((i) => [i.id, i]))
@@ -78,8 +78,17 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
       case 'invoice.uploaded':
         activity.push({ ...base, kind: 'uploaded', text: `Invoice received · ${String(details.name ?? '')}`, amount_eur: null })
         break
-      case 'mandate.installed':
-        activity.push({ ...base, kind: 'registered', text: `Roles module installed on the Safe${simulated ? ' (simulated)' : ''}`, amount_eur: null })
+      case 'thyme.profile_active':
+        activity.push({ ...base, kind: 'registered', text: 'Payroll enabled on the Safe · Thyme Roles profile active', amount_eur: null })
+        break
+      case 'thyme.onboarded':
+        activity.push({ ...base, kind: 'registered', text: 'Thyme executable + webhook ready', amount_eur: null })
+        break
+      case 'thyme.onboarding_simulated':
+        activity.push({ ...base, kind: 'info', text: 'Onboarding simulated (no wallet, no Thyme)', amount_eur: null })
+        break
+      case 'thyme.executable_paused':
+        activity.push({ ...base, kind: 'held', text: 'Kill switch · Thyme executable paused', amount_eur: null })
         break
       case 'agent.paused':
         activity.push({ ...base, kind: 'held', text: `Agent paused · ${String(details.agent ?? '')}`, amount_eur: null })
@@ -105,7 +114,6 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
   const execution = await resolveExecutionMode(serverEnv.paymentExecutor())
   return {
     safeAddress,
-    agentAddress,
     balances,
     balancesError,
     counts,
@@ -119,10 +127,11 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
       chips:
         a.kind === 'payment'
           ? [
-              { variant: 'chain' as const, label: `${active.length} payee${active.length === 1 ? '' : 's'}` },
-              { variant: 'chain' as const, label: 'per-payee limit' },
               { variant: 'chain' as const, label: 'EURC only' },
-              { variant: 'agent' as const, label: execution.mode === 'thyme' ? 'Thyme Flow' : execution.mode === 'direct' ? 'agent key' : 'simulated' },
+              { variant: 'chain' as const, label: 'transfer only' },
+              { variant: 'chain' as const, label: 'this Safe via Thyme' },
+              { variant: 'agent' as const, label: `${active.length} payee${active.length === 1 ? '' : 's'} · limits` },
+              { variant: 'agent' as const, label: execution.mode === 'thyme' ? 'Thyme Flow' : 'simulated' },
             ]
           : [
               { variant: 'agent' as const, label: 'sanctions' },
@@ -134,5 +143,6 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): 
     activity,
     comparison,
     execution,
+    onboarding: { ready: onboarding.ready, onboarded: onboarding.onboarded, simulated: onboarding.simulated, configured: onboarding.configured, step: onboarding.step },
   }
 })

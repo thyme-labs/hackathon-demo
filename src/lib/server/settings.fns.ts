@@ -12,11 +12,11 @@ const ENV_NAMES: { name: string; group: EnvStatusItem['group']; secret: boolean 
   { name: 'MOSTLYRIGHT_API_KEY', group: 'data', secret: true },
   { name: 'THYME_API_URL', group: 'thyme', secret: true },
   { name: 'THYME_API_KEY', group: 'thyme', secret: true },
-  { name: 'THYME_PAY_WEBHOOK_URL', group: 'thyme', secret: true },
-  { name: 'THYME_EXECUTABLE_ID', group: 'thyme', secret: false },
+  { name: 'THYME_PROJECT_ID', group: 'thyme', secret: false },
+  { name: 'THYME_FUNCTION_ID', group: 'thyme', secret: false },
   { name: 'THYME_PULL_TOKEN', group: 'thyme', secret: true },
+  { name: 'THYME_WORKSPACE_ID', group: 'thyme', secret: false },
   { name: 'SEPOLIA_RPC_URL', group: 'chain', secret: true },
-  { name: 'AGENT_PRIVATE_KEY', group: 'chain', secret: true },
   { name: 'PAYMENT_EXECUTOR', group: 'chain', secret: false },
   { name: 'AUTO_PAY_THRESHOLD', group: 'app', secret: false },
   { name: 'VITE_WALLETCONNECT_PROJECT_ID', group: 'app', secret: true },
@@ -36,25 +36,15 @@ export const getSettings = createServerFn({ method: 'GET' }).handler(async (): P
   const { settings } = await import('../store/repos')
   const { serverEnv } = await import('../env')
   const { resolveExecutionMode } = await import('../payments/runner')
-  const { getThymeTriggerMode } = await import('../thyme/env')
-  const { getAgentAddress } = await import('../chain/agentSigner')
-  const { resolveAgentAddress } = await import('./mandate')
-  const all = settings.all()
+  const { buildOnboardingView } = await import('./thymeOnboarding')
   const boot = bootStatus()
-  const fromKey = getAgentAddress()
   return {
-    safeAddress: all.safeAddress ?? null,
-    rolesProxy: all.rolesProxy ?? null,
-    roleKey: all.roleKey ?? null,
-    mandateId: all.mandateId ?? null,
-    installTxHash: all.installTxHash ?? null,
-    agentAddress: await resolveAgentAddress(),
-    agentFromKey: Boolean(fromKey),
+    safeAddress: settings.get('safeAddress'),
     executor: serverEnv.paymentExecutor(),
     provider: serverEnv.llmProvider(),
     autoPayThreshold: serverEnv.autoPayThreshold(),
-    execution: await resolveExecutionMode(serverEnv.paymentExecutor()),
-    thymeTriggerMode: getThymeTriggerMode(),
+    execution: await resolveExecutionMode(),
+    thyme: buildOnboardingView(),
     env: ENV_NAMES.map((e) => {
       const value = process.env[e.name] ?? ''
       return { name: e.name, group: e.group, configured: value !== '', masked: value ? mask(value, e.secret) : '—' }
@@ -66,35 +56,26 @@ export const getSettings = createServerFn({ method: 'GET' }).handler(async (): P
 
 export interface UpdateSettingsInput {
   safeAddress?: string | null
-  rolesProxy?: string | null
-  roleKey?: string | null
-  agentAddress?: string | null
 }
 
+/** The Safe address is the only free-form setting left; everything about Thyme comes from the onboarding. */
 export const updateSettings = createServerFn({ method: 'POST' })
   .validator((input: UpdateSettingsInput) => input)
   .handler(async ({ data }): Promise<{ ok: true }> => {
-    const { isAddress, getAddress, isHex } = await import('viem')
+    const { isAddress, getAddress } = await import('viem')
     const { settings, appendAudit } = await import('../store/repos')
-    const addr = (v: string | null | undefined, label: string): string | null | undefined => {
-      if (v === undefined) return undefined
-      const t = v?.trim() ?? ''
-      if (t === '') return null
-      if (!isAddress(t)) throw new Error(`${label} is not a valid address`)
-      return getAddress(t)
+    if (data.safeAddress !== undefined) {
+      const t = data.safeAddress?.trim() ?? ''
+      if (t !== '' && !isAddress(t)) throw new Error('Safe address is not a valid address')
+      const safe = t === '' ? null : getAddress(t)
+      const active = settings.get('thymeProfileStatus') === 'active'
+      const current = settings.get('safeAddress')
+      if (active && current && safe?.toLowerCase() !== current.toLowerCase()) {
+        throw new Error('Payroll is enabled on the current Safe through Thyme. Forget the onboarding before changing the Safe.')
+      }
+      settings.set('safeAddress', safe)
+      appendAudit({ actor: 'owner', event: 'settings.updated', details: { safeAddress: safe } })
     }
-    const safe = addr(data.safeAddress, 'Safe address')
-    const roles = addr(data.rolesProxy, 'Roles proxy')
-    const agent = addr(data.agentAddress, 'Agent address')
-    if (safe !== undefined) settings.set('safeAddress', safe)
-    if (roles !== undefined) settings.set('rolesProxy', roles)
-    if (agent !== undefined) settings.set('agentAddress', agent)
-    if (data.roleKey !== undefined) {
-      const key = data.roleKey?.trim() ?? ''
-      if (key && !(isHex(key) && key.length === 66)) throw new Error('Role key must be a 32-byte hex value')
-      settings.set('roleKey', key || null)
-    }
-    appendAudit({ actor: 'owner', event: 'settings.updated', details: { safeAddress: safe, rolesProxy: roles, agentAddress: agent, roleKey: data.roleKey === undefined ? undefined : Boolean(data.roleKey) } })
     return { ok: true }
   })
 
@@ -103,12 +84,13 @@ export interface ResetDemoResult {
   removed: { invoices: number; payouts: number; beneficiaries: number; audit: number; files: number }
 }
 
-const MANDATE_KEYS = ['rolesProxy', 'roleKey', 'mandateId', 'installTxHash']
+/** Settings from the retired agent-key design; removed on reset so nothing stale lingers. */
+const LEGACY_KEYS = ['rolesProxy', 'roleKey', 'mandateId', 'installTxHash', 'agentAddress', 'mandateSimulated', 'revokeTxHash', 'resumeTxHash']
 
 /**
  * Clean slate before a rehearsal: removes invoices, payouts, beneficiaries, the audit log (SQLite + JSONL) and uploaded
- * PDFs; forgets the mandate (roles proxy / role key) so the next registration installs again; keeps the Safe and agent
- * addresses and sets both agents back to running. Waits for an in-flight worker tick first.
+ * PDFs; sets both agents back to running. Keeps the Safe address and the Thyme onboarding (profile, executable,
+ * webhook): redoing those costs an owner transaction. Waits for an in-flight worker tick first.
  */
 export const resetDemoData = createServerFn({ method: 'POST' }).handler(async (): Promise<ResetDemoResult> => {
   const { ensureBooted, bootStatus } = await import('./boot')
@@ -128,7 +110,8 @@ export const resetDemoData = createServerFn({ method: 'POST' }).handler(async ()
     db.run('DELETE FROM beneficiaries')
     db.run('DELETE FROM audit_log')
     db.run('UPDATE agents SET last_run_at = NULL')
-    for (const key of MANDATE_KEYS) settings.remove(key)
+    for (const key of LEGACY_KEYS) settings.remove(key)
+    settings.remove('thymeLastExecutionId')
   })()
   for (const agent of agents.list()) agents.setStatus(agent.id, 'running')
   const dir = invoicesDir()

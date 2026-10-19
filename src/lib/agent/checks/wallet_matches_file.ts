@@ -42,7 +42,7 @@ export const run = async (ctx: CheckContext) => {
   if (printed !== onFile) {
     return makeResult(spec, ctx, {
       status: 'fail',
-      evidence: `Invoice prints ${printed} but the wallet on file is ${onFile}. Pattern of swapped-wallet invoice fraud; payment stopped. The on-chain allowlist would also revert a transfer to the printed address.`,
+      evidence: `Invoice prints ${printed} but the wallet on file is ${onFile}. Pattern of swapped-wallet invoice fraud; payment stopped. The payment rail only ever hands Thyme the wallet on file, so the printed address cannot be paid even if an agent were fooled (agent rule).`,
       source,
       data: { printed, onFile, mismatch: true },
     })

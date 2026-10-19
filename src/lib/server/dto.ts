@@ -1,9 +1,11 @@
 // Shapes returned by the server functions to the UI. Types only: safe to import anywhere.
 import type { ChecklistSnapshot } from '../agent/types'
 import type { Agent, AuditEntry, Beneficiary, Invoice, Payout } from '../store/types'
-import type { MandatePlan, SafeTxDto } from './mandate'
 
-export type { ChecklistSnapshot, MandatePlan, SafeTxDto }
+export type { ChecklistSnapshot }
+
+/** PAYMENT_EXECUTOR: Thyme Flow is the only rail; 'simulated' records labelled fake payouts. */
+export type PaymentExecutorName = 'thyme' | 'simulated'
 
 export interface InvoiceListItem {
   id: string
@@ -29,8 +31,16 @@ export interface ExtractedView {
 }
 
 export interface ExecutionModeInfo {
-  mode: 'direct' | 'thyme' | 'simulated'
+  mode: 'thyme' | 'simulated'
   reason: string
+}
+
+/** Where the Safe stands with Thyme, as the invoice view needs it. */
+export interface SafeRailInfo {
+  safeAddress: string | null
+  profileId: string | null
+  onboarded: boolean
+  simulated: boolean
 }
 
 export interface InvoiceDetail {
@@ -42,7 +52,7 @@ export interface InvoiceDetail {
   audit: AuditEntry[]
   provider: { name: string; label: string }
   executionMode: ExecutionModeInfo
-  mandate: { safeAddress: string | null; rolesProxy: string | null; roleKey: string | null }
+  rail: SafeRailInfo
 }
 
 export interface DemoInvoiceItem {
@@ -66,16 +76,154 @@ export interface BeneficiaryDetail {
   paid_this_month_eur: number
 }
 
+// ── Thyme onboarding ──────────────────────────────────────────────────────
+
+export type ThymeProfileState = 'pending' | 'active' | 'failed'
+export type ThymeExecutableState = 'provisioning' | 'active' | 'paused' | 'error' | 'deleted'
+export type ThymeTriggerModeName = 'webhook' | 'management-run' | 'none'
+export type OnboardingStep = 'connect' | 'safe' | 'enable' | 'setup' | 'executable' | 'done'
+
+export interface ScopeSummary {
+  /** What Thyme can do on the Safe (chain). */
+  can: string[]
+  /** What the Roles scope forbids (chain). */
+  cant: string[]
+}
+
+export interface AllowlistRuleView {
+  target: string
+  selector: string
+  functionSignature?: string
+}
+
+/** Everything the onboarding page, settings and agents page show about the Safe + Thyme. No credentials. */
+export interface ThymeOnboardingView {
+  /** THYME_API_KEY + THYME_PROJECT_ID + THYME_FUNCTION_ID are set: the server can drive the onboarding. */
+  configured: boolean
+  missingEnv: string[]
+  apiHost: string | null
+  executor: PaymentExecutorName
+  appUrl: string
+  pullTokenSet: boolean
+  triggerMode: ThymeTriggerModeName
+  safeAddress: string | null
+  ownerAddress: string | null
+  profileId: string | null
+  profileAlias: string | null
+  profileStatus: ThymeProfileState | null
+  profileError: string | null
+  rolesProxy: string | null
+  executorSafe: string | null
+  setupTxHash: string | null
+  executableId: string | null
+  executableStatus: ThymeExecutableState | null
+  executablePausedReason: string | null
+  hasWebhook: boolean
+  lastExecutionId: string | null
+  simulatedAt: string | null
+  /** Real onboarding complete: active profile + executable + webhook. */
+  onboarded: boolean
+  /** The owner chose the labelled simulation instead. */
+  simulated: boolean
+  /** onboarded || simulated: beneficiaries can be registered and payouts flow (real or labelled). */
+  ready: boolean
+  step: OnboardingStep
+  scope: ScopeSummary
+  allowlist: AllowlistRuleView[]
+}
+
+export interface OwnerTransactionDto {
+  to: string
+  /** Hex wei, '0x0'. */
+  value: string
+  data: string
+}
+
+export interface PrepareProfileResult {
+  profileId: string
+  alias: string
+  chainId: number
+  safeAddress: string
+  ownerAddress: string
+  /** The owner sends this from MetaMask as-is (plain EOA transaction to the Safe). */
+  transaction: OwnerTransactionDto
+  predicted: { rolesProxy: string; executorSafe: string }
+  scopeRules: AllowlistRuleView[]
+  setupDataHash: string
+  scope: ScopeSummary
+}
+
+export interface ConfirmSetupResult {
+  /** 'pending' = Thyme has no receipt yet (409 setup_not_mined): call again. */
+  status: 'active' | 'pending'
+  message: string
+  rolesProxy: string | null
+  executorSafe: string | null
+  txHash: string
+}
+
+export interface ProfileStatusResult {
+  status: ThymeProfileState
+  profileStatus: string
+  lastError: string | null
+  rolesProxy: string | null
+  executorSafe: string | null
+  setupTxHash: string | null
+  liftPolicyId: string | null
+}
+
+export interface ExecutableResult {
+  executableId: string
+  status: ThymeExecutableState
+  pausedReason: string | null
+  hasWebhook: boolean
+  /** Active and reachable through the webhook. */
+  ready: boolean
+  message: string
+}
+
+/** What registering a beneficiary means now: no Safe transaction, the rail is already scoped. */
+export interface RegistrationPlan {
+  /** Thyme onboarded (real) or simulated: the registration can go ahead. */
+  ready: boolean
+  onboarded: boolean
+  simulated: boolean
+  executor: PaymentExecutorName
+  reason: string
+  safeAddress: string | null
+  profileId: string | null
+  payees: number
+  limitEur: number
+  /** Enforced on chain by Thyme's Roles scope. */
+  chain: string[]
+  /** Enforced by the payroll agent before a payout is handed to Thyme. */
+  agent: string[]
+}
+
+export interface ThymeAgentInfo {
+  triggerMode: ThymeTriggerModeName
+  onboarded: boolean
+  simulated: boolean
+  safeAddress: string | null
+  profileId: string | null
+  profileStatus: ThymeProfileState | null
+  executableId: string | null
+  executableStatus: ThymeExecutableState | null
+  executablePausedReason: string | null
+  hasWebhook: boolean
+  lastExecutionId: string | null
+  rolesProxy: string | null
+  executorSafe: string | null
+}
+
 export interface AgentView extends Agent {
   config: Record<string, unknown>
   cost_usd: number
   llm_calls: number
   runs: AuditEntry[]
-  executor: 'thyme' | 'direct'
+  executor: PaymentExecutorName
   execution: ExecutionModeInfo
-  thyme: { triggerMode: 'webhook' | 'management-run' | 'none'; executableId: string | null; consoleUrl: string | null }
-  agentAddress: string | null
-  rolesProxy: string | null
+  thyme: ThymeAgentInfo
   payees: number
   limit_eur: number
   used_eur: number
@@ -101,7 +249,6 @@ export interface ActivityItem {
 
 export interface DashboardView {
   safeAddress: string | null
-  agentAddress: string | null
   balances: { eth: string; eurc: string; usdc: string; blockNumber: string; address: string } | null
   balancesError: string | null
   counts: { beneficiaries: number; activeBeneficiaries: number; queued: number; needsApproval: number; paid: number; paidEur: number; agentsRunning: number; agentsTotal: number }
@@ -109,6 +256,7 @@ export interface DashboardView {
   activity: ActivityItem[]
   comparison: { headline: string; subline: string; savedEur: number; savedBusinessDays: number; payouts: number; totalEur: number; periodLabel: string } | null
   execution: ExecutionModeInfo
+  onboarding: { ready: boolean; onboarded: boolean; simulated: boolean; configured: boolean; step: OnboardingStep }
 }
 
 export interface EnvStatusItem {
@@ -120,17 +268,11 @@ export interface EnvStatusItem {
 
 export interface SettingsView {
   safeAddress: string | null
-  rolesProxy: string | null
-  roleKey: string | null
-  mandateId: string | null
-  installTxHash: string | null
-  agentAddress: string | null
-  agentFromKey: boolean
-  executor: 'thyme' | 'direct'
+  executor: PaymentExecutorName
   provider: 'bedrock' | 'anthropic' | 'mock'
   autoPayThreshold: number
   execution: ExecutionModeInfo
-  thymeTriggerMode: 'webhook' | 'management-run' | 'none'
+  thyme: ThymeOnboardingView
   env: EnvStatusItem[]
   boot: { startedAt: string; running: boolean; lastTickAt: string | null; lastError: string | null }
   databasePath: string

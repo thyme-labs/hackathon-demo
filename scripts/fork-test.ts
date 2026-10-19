@@ -21,7 +21,7 @@ import {
 } from 'viem';
 import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
-import { createAgentSigner } from '../src/lib/chain/agentSigner';
+import { createAgentSigner } from './lib/forkSigner';
 import { readBalances, readEurcBalance } from '../src/lib/chain/balances';
 import { createSepoliaPublicClient } from '../src/lib/chain/clients';
 import {

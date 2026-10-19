@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import { LoaderCircle, RotateCcw } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { SettingsView } from '@/lib/server/dto'
 import { getSettings, resetDemoData, updateSettings } from '@/lib/server/settings.fns'
+import { forgetThymeOnboarding } from '@/lib/server/thyme.fns'
 
 const GROUPS: { id: SettingsView['env'][number]['group']; label: string }[] = [
   { id: 'llm', label: 'LLM' },
@@ -28,16 +29,22 @@ export function SettingsPage({ initial }: { initial: SettingsView }) {
   const { address } = useAccount()
   const { data } = useQuery({ queryKey: ['settings'], queryFn: () => getSettings(), initialData: initial })
   const view = data ?? initial
+  const thyme = view.thyme
   const [safe, setSafe] = useState(view.safeAddress ?? '')
-  const [roles, setRoles] = useState(view.rolesProxy ?? '')
-  const [roleKey, setRoleKey] = useState(view.roleKey ?? '')
-  const [agent, setAgent] = useState(view.agentAddress ?? '')
   const save = useMutation({
-    mutationFn: () => updateSettings({ data: { safeAddress: safe, rolesProxy: roles, roleKey, agentAddress: view.agentFromKey ? undefined : agent } }),
+    mutationFn: () => updateSettings({ data: { safeAddress: safe } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       toast.success('Settings saved')
+    },
+    onError: (e) => toast.error(e.message),
+  })
+  const forget = useMutation({
+    mutationFn: () => forgetThymeOnboarding(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries()
+      toast.message('Thyme onboarding forgotten')
     },
     onError: (e) => toast.error(e.message),
   })
@@ -74,48 +81,75 @@ export function SettingsPage({ initial }: { initial: SettingsView }) {
   function handleUseConnected() {
     if (address) setSafe(address)
   }
+  function handleForget() {
+    forget.mutate()
+  }
+
+  const profileTone = thyme.profileStatus === 'active' ? 'ok' : thyme.profileStatus === 'failed' ? 'fail' : thyme.profileStatus === 'pending' ? 'warn' : 'idle'
+  const executableTone = thyme.executableStatus === 'active' ? 'ok' : thyme.executableStatus === 'provisioning' ? 'warn' : thyme.executableId ? 'fail' : 'idle'
 
   return (
     <>
-      <PageHeader title="Settings" eyebrow="Mandate, executor and environment" />
+      <PageHeader title="Settings" eyebrow="Safe, Thyme rail and environment" />
 
-      <Section title="Mandate">
+      <Section
+        title="Safe & Thyme"
+        aside={
+          <Button asChild variant="secondary" size="sm">
+            <Link to="/onboarding">{thyme.onboarded ? 'Onboarding details' : 'Enable payroll'}</Link>
+          </Button>
+        }
+      >
         <form onSubmit={handleSubmit} className="grid gap-4 rounded-xl bg-surface p-6">
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Safe address (owner = connected wallet)">
+            <Field label="Safe address (the EURC treasury on Sepolia)">
               <div className="flex gap-2">
-                <Input value={safe} onChange={(e) => setSafe(e.target.value)} placeholder="0x…" className="font-mono text-xs" />
-                {address ? (
-                  <Button type="button" variant="secondary" onClick={handleUseConnected} title="Use the connected address (EOA demo)">
+                <Input value={safe} onChange={(e) => setSafe(e.target.value)} placeholder="0x…" className="font-mono text-xs" readOnly={thyme.profileStatus === 'active'} />
+                {address && thyme.profileStatus !== 'active' ? (
+                  <Button type="button" variant="secondary" onClick={handleUseConnected} title="Use the connected address (EOA demo: balances only)">
                     Use wallet
                   </Button>
                 ) : null}
               </div>
             </Field>
-            <Field label={view.agentFromKey ? 'Agent address (from AGENT_PRIVATE_KEY)' : 'Agent address (no key configured)'}>
-              <Input value={agent} onChange={(e) => setAgent(e.target.value)} placeholder="0x…" className="font-mono text-xs" readOnly={view.agentFromKey} />
-            </Field>
-            <Field label="Roles proxy (set by the install tx)">
-              <Input value={roles} onChange={(e) => setRoles(e.target.value)} placeholder="0x…" className="font-mono text-xs" />
-            </Field>
-            <Field label="Role key">
-              <Input value={roleKey} onChange={(e) => setRoleKey(e.target.value)} placeholder="0x… (32 bytes)" className="font-mono text-xs" />
+            <Field label="Owner wallet (sent the setup transaction)">
+              <div className="flex h-9 items-center text-xs">{thyme.ownerAddress ? <AddressMono value={thyme.ownerAddress} /> : <span className="text-dim">none yet</span>}</div>
             </Field>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="grid gap-3 md:grid-cols-3">
+            <Card label="Roles profile" value={thyme.profileStatus ?? (thyme.simulated ? 'simulated' : 'none')} hint={thyme.profileId ?? 'prepared by Thyme for your Safe'} tone={profileTone} mono />
+            <Card label="Executable" value={thyme.executableStatus ?? (thyme.executableId ? 'unknown' : 'none')} hint={thyme.executablePausedReason ?? thyme.executableId ?? 'pay-invoice · cron every minute'} tone={executableTone} mono />
+            <Card label="Webhook" value={thyme.hasWebhook ? 'ready' : 'none'} hint={thyme.hasWebhook ? 'run-only URL stored server-side' : 'created with the executable'} tone={thyme.hasWebhook ? 'ok' : 'idle'} />
+          </div>
+          <div className="flex items-center justify-between gap-4">
             <div className="text-xs text-dim">
-              {view.mandateId ? `mandate ${view.mandateId}` : 'no mandate installed'}
-              {view.installTxHash ? (
+              {thyme.setupTxHash ? (
                 <>
-                  {' '}
-                  · install tx <AddressMono value={view.installTxHash} kind="tx" />
+                  setup tx <AddressMono value={thyme.setupTxHash} kind="tx" />
+                  {' · '}
                 </>
               ) : null}
+              {thyme.rolesProxy ? (
+                <>
+                  Roles module <AddressMono value={thyme.rolesProxy} />
+                </>
+              ) : (
+                'no Roles module yet'
+              )}
+              {thyme.lastExecutionId ? <span className="ml-2 font-mono">· last execution {thyme.lastExecutionId}</span> : null}
             </div>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
-              Save
-            </Button>
+            <div className="flex gap-2">
+              {thyme.profileId || thyme.simulatedAt ? (
+                <Button type="button" variant="ghost" className="text-dim" onClick={handleForget} disabled={forget.isPending}>
+                  {forget.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
+                  Forget onboarding
+                </Button>
+              ) : null}
+              <Button type="submit" disabled={save.isPending || thyme.profileStatus === 'active'}>
+                {save.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
+                Save
+              </Button>
+            </div>
           </div>
         </form>
       </Section>
@@ -158,6 +192,7 @@ export function SettingsPage({ initial }: { initial: SettingsView }) {
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Chip variant="agent">values never leave the server</Chip>
           <Chip variant="agent">secrets masked</Chip>
+          <Chip variant="agent">no private key anywhere</Chip>
           <Chip variant="chain">Sepolia only</Chip>
         </div>
       </Section>
@@ -165,7 +200,7 @@ export function SettingsPage({ initial }: { initial: SettingsView }) {
       <Section title="Demo data">
         <div className="flex items-center justify-between gap-6 rounded-xl bg-surface px-5 py-4">
           <div className="text-xs text-dim">
-            Removes invoices, payouts, beneficiaries, the audit log and uploaded PDFs, and forgets the mandate. Keeps the Safe and agent addresses.
+            Removes invoices, payouts, beneficiaries, the audit log and uploaded PDFs. Keeps the Safe address and the Thyme onboarding.
             {armed ? <span className="ml-1 text-blocked">Click again to confirm.</span> : null}
           </div>
           <Button
@@ -193,12 +228,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function Card({ label, value, hint, tone }: { label: string; value: string; hint: string; tone: 'ok' | 'warn' }) {
+function Card({ label, value, hint, tone, mono = false }: { label: string; value: string; hint: string; tone: 'ok' | 'warn' | 'fail' | 'idle'; mono?: boolean }) {
   return (
     <div className="rounded-xl bg-surface px-5 py-4">
       <div className="text-xs text-dim">{label}</div>
-      <div className={cn('mt-2 font-mono text-xl tracking-tightest', tone === 'warn' && 'text-paused')}>{value}</div>
-      <div className="mt-1 text-xs text-dim">{hint}</div>
+      <div className={cn('mt-2 font-mono text-xl tracking-tightest', tone === 'warn' && 'text-paused', tone === 'fail' && 'text-blocked', tone === 'idle' && 'text-dim')}>{value}</div>
+      <div className={cn('mt-1 truncate text-xs text-dim', mono && 'font-mono')} title={hint}>
+        {hint}
+      </div>
     </div>
   )
 }

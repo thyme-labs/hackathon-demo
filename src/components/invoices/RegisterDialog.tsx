@@ -1,9 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronRight, LoaderCircle, X } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Check, LoaderCircle, Lock, Sparkles } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { toast } from 'sonner'
-import { type Address, getAddress, type Hex } from 'viem'
-import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
 import { cn } from '@/lib/utils'
 import { AddressMono } from '@/components/ui-kit/AddressMono'
 import { Chip, ChipLegend } from '@/components/ui-kit/Chip'
@@ -11,11 +10,10 @@ import { formatEur } from '@/components/ui-kit/format'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { buildExecTransactionCall } from '@/lib/chain/safe'
-import { SEPOLIA_CHAIN_ID } from '@/lib/roles/constants'
 import type { BeneficiaryProposal } from '@/lib/agent/types'
-import type { MandatePlan } from '@/lib/server/dto'
-import { type ApproveBeneficiaryInput, approveBeneficiary, confirmInstall } from '@/lib/server/invoices.fns'
+import type { RegistrationPlan } from '@/lib/server/dto'
+import { type ApproveBeneficiaryInput, approveBeneficiary, registerBeneficiary } from '@/lib/server/invoices.fns'
+import { simulateThymeOnboarding } from '@/lib/server/thyme.fns'
 
 interface RegisterDialogProps {
   open: boolean
@@ -26,17 +24,17 @@ interface RegisterDialogProps {
   existing?: { id: string; name: string; wallet: string | null; monthly_limit_eur: number; country: string | null; type: 'person' | 'company'; tax_id: string | null } | null
 }
 
-type Phase = 'form' | 'review' | 'signing' | 'done'
+type Phase = 'form' | 'review'
 
-/** "Register beneficiary + limit": one dialog, one Safe transaction (or a simulated signature without a wallet). */
+/**
+ * "Register beneficiary + limit": confirm the payee and its 30-day limit. No Safe transaction: Thyme's
+ * Roles scope (EURC.transfer from the Safe) was set once at onboarding; the wallet and the limit are
+ * enforced by the payment agent before anything is handed to Thyme.
+ */
 export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existing }: RegisterDialogProps) {
   const queryClient = useQueryClient()
-  const { address, isConnected } = useAccount()
-  const publicClient = usePublicClient()
-  const { writeContractAsync } = useWriteContract()
-
   const [phase, setPhase] = useState<Phase>('form')
-  const [plan, setPlan] = useState<MandatePlan | null>(null)
+  const [plan, setPlan] = useState<RegistrationPlan | null>(null)
   const [beneficiaryId, setBeneficiaryId] = useState<string | null>(existing?.id ?? null)
   const [form, setForm] = useState<ApproveBeneficiaryInput>({
     invoiceId,
@@ -49,7 +47,6 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
     website: proposal.website,
     monthlyLimitEur: existing?.monthly_limit_eur || proposal.suggested_limit_eur,
   })
-  const [showCalls, setShowCalls] = useState(false)
 
   const prepare = useMutation({
     mutationFn: (input: ApproveBeneficiaryInput) => approveBeneficiary({ data: input }),
@@ -62,76 +59,37 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
   })
 
   const finish = useMutation({
-    mutationFn: async (txHash: Hex | null) => {
-      if (!plan || !beneficiaryId) throw new Error('no plan')
-      return confirmInstall({
-        data: {
-          invoiceId,
-          beneficiaryId,
-          mode: plan.mode,
-          txHash,
-          rolesProxy: plan.rolesProxy,
-          roleKey: plan.roleKey,
-          mandateId: plan.mandateId,
-          simulated: txHash === null,
-        },
-      })
+    mutationFn: async (simulateFirst: boolean) => {
+      if (!beneficiaryId) throw new Error('no beneficiary')
+      if (simulateFirst) await simulateThymeOnboarding({ data: { safeAddress: plan?.safeAddress ?? null } })
+      return registerBeneficiary({ data: { invoiceId, beneficiaryId } })
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['invoice', invoiceId] })
       await queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      setPhase('done')
+      await queryClient.invalidateQueries({ queryKey: ['thyme-onboarding'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       onOpenChange(false)
       toast.success('Beneficiary registered · payout queued')
     },
-    onError: (error) => {
-      setPhase('review')
-      toast.error(error.message)
-    },
+    onError: (error) => toast.error(error.message),
   })
-
-  const canSign = Boolean(plan?.signable && plan.safeTx && plan.safeAddress && isConnected && address)
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     prepare.mutate(form)
   }
-
-  async function handleSign() {
-    if (!plan) return
-    if (!canSign || !plan.safeTx || !plan.safeAddress || !address || !publicClient) {
-      finish.mutate(null)
-      return
-    }
-    setPhase('signing')
-    try {
-      const call = buildExecTransactionCall(getAddress(plan.safeAddress), address as Address, {
-        to: plan.safeTx.to,
-        value: BigInt(plan.safeTx.value),
-        data: plan.safeTx.data,
-        operation: plan.safeTx.operation,
-      })
-      const hash = await writeContractAsync({ ...call, chainId: SEPOLIA_CHAIN_ID })
-      toast.message('Transaction sent', { description: hash })
-      const receipt = await publicClient.waitForTransactionReceipt({ hash })
-      if (receipt.status !== 'success') throw new Error('Safe transaction reverted')
-      finish.mutate(hash)
-    } catch (error) {
-      setPhase('review')
-      toast.error(error instanceof Error ? error.message : String(error))
-    }
+  function handleRegister() {
+    finish.mutate(false)
   }
-
-  function handleSimulate() {
-    finish.mutate(null)
+  function handleRegisterSimulated() {
+    finish.mutate(true)
   }
-
   function handleBack() {
     setPhase('form')
   }
-
-  function toggleCalls() {
-    setShowCalls((v) => !v)
+  function handleCancel() {
+    onOpenChange(false)
   }
 
   const set = (key: keyof ApproveBeneficiaryInput) => (event: FormEvent<HTMLInputElement>) => {
@@ -146,7 +104,7 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
           <form onSubmit={handleSubmit} className="grid gap-5">
             <DialogHeader>
               <DialogTitle>Register beneficiary</DialogTitle>
-              <DialogDescription>Confirm the payee from the invoice and set a monthly limit. The chain enforces it.</DialogDescription>
+              <DialogDescription>Confirm the payee from the invoice and set a 30-day limit. The agent enforces both; Thyme can only move EURC from the Safe.</DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Name" className="col-span-2">
@@ -170,7 +128,7 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
             </div>
             <div className="text-xs text-dim">Suggested limit: {formatEur(proposal.suggested_limit_eur)} (2.5× this invoice, rounded to €100).</div>
             <DialogFooter>
-              <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="secondary" onClick={handleCancel}>
                 Cancel
               </Button>
               <Button type="submit" disabled={prepare.isPending}>
@@ -181,81 +139,76 @@ export function RegisterDialog({ open, onOpenChange, invoiceId, proposal, existi
           </form>
         ) : null}
 
-        {(phase === 'review' || phase === 'signing' || phase === 'done') && plan ? (
+        {phase === 'review' && plan ? (
           <div className="grid gap-5">
             <DialogHeader>
-              <DialogTitle>Sign mandate</DialogTitle>
+              <DialogTitle>Confirm registration</DialogTitle>
               <DialogDescription>{plan.reason}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-wrap gap-1.5">
-              <Chip variant="chain">{plan.payees.length} payee{plan.payees.length === 1 ? '' : 's'}</Chip>
-              <Chip variant="chain">≤ {formatEur(form.monthlyLimitEur)}/mo</Chip>
-              <Chip variant="chain">EURC</Chip>
-              <Chip variant="agent">invoice approved</Chip>
-              <Chip variant="agent">sanctions check</Chip>
+              <Chip variant="agent">{plan.payees} payee{plan.payees === 1 ? '' : 's'}</Chip>
+              <Chip variant="agent">≤ {formatEur(form.monthlyLimitEur)}/30 d</Chip>
+              <Chip variant="chain">EURC only</Chip>
+              <Chip variant="chain">transfer only</Chip>
+              <Chip variant="chain">via Thyme on the Safe</Chip>
             </div>
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <h3 className="mb-3 text-xs text-dim">Can</h3>
-                {plan.can.map((line) => (
-                  <div key={line} className="my-2.5 flex items-center gap-2 text-xs text-secondary-foreground">
-                    <Check aria-hidden className="size-3.5 text-sage" />
+                <h3 className="mb-3 flex items-center gap-1.5 text-xs text-dim">
+                  <Lock aria-hidden className="size-3" />
+                  Chain (Thyme Roles scope)
+                </h3>
+                {plan.chain.map((line) => (
+                  <div key={line} className="my-2.5 flex items-start gap-2 text-xs text-secondary-foreground">
+                    <Check aria-hidden className="mt-0.5 size-3.5 shrink-0 text-sage" />
                     {line}
                   </div>
                 ))}
               </div>
               <div>
-                <h3 className="mb-3 text-xs text-dim">Can’t</h3>
-                {plan.cant.map((line) => (
-                  <div key={line} className="my-2.5 flex items-center gap-2 text-xs text-secondary-foreground">
-                    <X aria-hidden className="size-3.5 text-dim" />
+                <h3 className="mb-3 flex items-center gap-1.5 text-xs text-dim">
+                  <Sparkles aria-hidden className="size-3" />
+                  Agent (before every payout)
+                </h3>
+                {plan.agent.map((line) => (
+                  <div key={line} className="my-2.5 flex items-start gap-2 text-xs text-secondary-foreground">
+                    <Check aria-hidden className="mt-0.5 size-3.5 shrink-0 text-sage" />
                     {line}
                   </div>
                 ))}
               </div>
             </div>
-            <div className="border-y border-hairline py-3 text-xs text-dim">
-              <button type="button" onClick={toggleCalls} className="flex items-center gap-1.5">
-                <ChevronRight aria-hidden className={cn('size-3 transition-transform', showCalls && 'rotate-90')} />
-                {plan.calls.length} call{plan.calls.length === 1 ? '' : 's'} · {plan.mode === 'install' ? 'install Roles module' : plan.mode === 'add_payee' ? 'add payee' : 'no chain change'}
-              </button>
-              {showCalls ? (
-                <ol className="mt-3 ml-5 grid gap-1 font-mono text-xs leading-relaxed">
-                  {plan.calls.map((c, i) => (
-                    <li key={c}>
-                      {i + 1} · {c}
-                    </li>
-                  ))}
-                  {plan.rolesProxy ? (
-                    <li className="text-dim">
-                      Roles proxy <AddressMono value={plan.rolesProxy} copy={false} />
-                    </li>
-                  ) : null}
-                </ol>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-between text-xs text-dim">
-              <span>Signer</span>
-              <span className="font-mono">{address ? <AddressMono value={address} link={false} /> : 'no wallet connected'}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs text-dim">
+            <div className="flex items-center justify-between border-t border-hairline pt-3 text-xs text-dim">
               <span>Safe</span>
-              <span className="font-mono">{plan.safeAddress ? <AddressMono value={plan.safeAddress} /> : 'not configured'}</span>
+              <span className="font-mono">{plan.safeAddress ? <AddressMono value={plan.safeAddress} /> : 'not enabled yet'}</span>
             </div>
+            {!plan.ready ? (
+              <div className="rounded-lg border border-paused/30 bg-paused/10 p-3 text-xs">
+                <div className="text-paused">Payroll is not enabled on a Safe yet</div>
+                <div className="mt-1 text-dim">
+                  Enable it once with the owner wallet (one transaction), or continue with a labelled simulation for the demo.
+                </div>
+                <div className="mt-3">
+                  <Button asChild size="sm" variant="secondary">
+                    <Link to="/onboarding">Enable payroll on the Safe</Link>
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <ChipLegend className="justify-end" />
             <DialogFooter>
-              <Button type="button" variant="secondary" onClick={handleBack} disabled={phase === 'signing' || finish.isPending}>
+              <Button type="button" variant="secondary" onClick={handleBack} disabled={finish.isPending}>
                 Back
               </Button>
-              {canSign ? (
-                <Button type="button" onClick={handleSign} disabled={phase === 'signing' || finish.isPending}>
-                  {phase === 'signing' || finish.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
-                  Sign
+              {plan.ready ? (
+                <Button type="button" onClick={handleRegister} disabled={finish.isPending}>
+                  {finish.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
+                  {plan.simulated ? 'Register (simulated payouts)' : 'Register'}
                 </Button>
               ) : (
-                <Button type="button" onClick={handleSimulate} disabled={finish.isPending}>
+                <Button type="button" variant="outline" onClick={handleRegisterSimulated} disabled={finish.isPending}>
                   {finish.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
-                  Simulate signature
+                  Continue simulated
                 </Button>
               )}
             </DialogFooter>
