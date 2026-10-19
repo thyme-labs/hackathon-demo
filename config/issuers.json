@@ -1,0 +1,85 @@
+{
+  "$comment": "Issuer registry for the issuer_backing check. The ESMA row is copied from the ESMA interim MiCA register of e-money token issuers (EMTWP.csv). Attestation figures marked TODO must be filled in by the team from Circle's latest public reserve report before the demo; until then the check reports warn.",
+  "tokens": {
+    "EURC": {
+      "name": "Euro Coin (EURC)",
+      "reference_currency": "EUR",
+      "dti_ffg": "13XTMPZT3",
+      "dti_per_ledger": [
+        "FJM594L0V",
+        "T1J8XQBSD",
+        "FZQ4WZNHC",
+        "FMXXP963M"
+      ],
+      "issuer_lei": "969500OYUDADGZKCR583",
+      "testnet_note": "Ethereum Sepolia EURC 0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4 is a Circle testnet contract with no DTI; the demo maps it to the mainnet token identity above and says so.",
+      "supply_sources": [
+        {
+          "chain": "ethereum",
+          "kind": "evm",
+          "contract": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",
+          "decimals": 6,
+          "tatum_gateway": "https://ethereum-mainnet.gateway.tatum.io",
+          "public_rpc": "https://ethereum-rpc.publicnode.com"
+        },
+        {
+          "chain": "base",
+          "kind": "evm",
+          "contract": "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
+          "decimals": 6,
+          "tatum_gateway": "https://base-mainnet.gateway.tatum.io",
+          "public_rpc": "https://base-rpc.publicnode.com"
+        },
+        {
+          "chain": "avalanche",
+          "kind": "evm",
+          "contract": "0xC891EB4cbdEFf6e073e859e987815Ed1505c2ACD",
+          "decimals": 6,
+          "tatum_gateway": "https://avalanche-mainnet.gateway.tatum.io",
+          "public_rpc": "https://avalanche-c-chain-rpc.publicnode.com"
+        },
+        {
+          "chain": "solana",
+          "kind": "solana",
+          "mint": "HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr",
+          "decimals": 6,
+          "tatum_gateway": "https://solana-mainnet.gateway.tatum.io",
+          "public_rpc": "https://api.mainnet-beta.solana.com"
+        }
+      ],
+      "attestation": {
+        "$comment": "From Circle's EURC Reserve Report (independent accountants' examination under AICPA attestation standards), figures as of the later Report Date. Refresh monthly from https://www.circle.com/transparency.",
+        "reserves_eur": 393284908,
+        "circulation_eur_at_report": 390534293,
+        "report_date": "2026-08-31",
+        "report_issued": "2026-09-29",
+        "source_url": "https://6778953.fs1.hubspotusercontent-na1.net/hubfs/6778953/EURC%20Attestations/2026%20EURC_Examination%20Report%20August%2026.pdf",
+        "source_note": "EURC Reserve Report, Report Dates 2026-08-11 and 2026-08-31 (figures taken as of 2026-08-31); extracted by the team from the public PDF on 2026-10-19",
+        "max_age_days": 62,
+        "max_supply_drift": 0.3
+      }
+    }
+  },
+  "issuers": {
+    "969500OYUDADGZKCR583": {
+      "legal_name": "Circle Internet Financial Europe SAS",
+      "lei": "969500OYUDADGZKCR583",
+      "home_member_state": "FR",
+      "competent_authority": "Autorite de Controle Prudentiel et de Resolution (ACPR)",
+      "authorisation_type": "Electronic money institution",
+      "authorisation_date": "2024-07-01",
+      "authorisation_end_date": null,
+      "address": "4 Rue de Marivaux 75002 Paris",
+      "website": "https://www.circle.com/fr/",
+      "white_paper_url": "https://www.circle.com/fr/legal/mica-eurc-whitepaper",
+      "white_paper_notification_date": "2024-07-01",
+      "register": "ESMA interim register of issuers of e-money tokens (MiCA Art. 109)",
+      "register_url": "https://www.esma.europa.eu/sites/default/files/2024-12/EMTWP.csv",
+      "register_row_last_update": "2025-12-24",
+      "also_casp": {
+        "note": "Same LEI authorised by the AMF as a MiCA CASP (custody and transfer services) since 2026-04-23, per ESMA CASPS.csv",
+        "register_url": "https://www.esma.europa.eu/sites/default/files/2024-12/CASPS.csv"
+      }
+    }
+  }
+}

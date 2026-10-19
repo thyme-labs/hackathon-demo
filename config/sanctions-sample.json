@@ -1,0 +1,80 @@
+{
+  "$comment": "Small offline sample of PUBLIC sanctions data so the demo runs without network access. The runtime fetchers in src/lib/agent/lists/ download the full EU consolidated list and OFAC SDN into data/lists/ when online; this file is only the fallback and is never a complete list.",
+  "eu_consolidated": {
+    "source_url": "https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw",
+    "file_generation_date": "2026-10-15",
+    "subjects": [
+      {
+        "logical_id": "172907",
+        "eu_reference": "EU.12747.39",
+        "subject_type": "E",
+        "names": ["Garantex"],
+        "programme": "RUS",
+        "remark": "Place of registration: Moscow, Russian Federation. Known Garantex blockchain wallet addresses: ETH 0x002471b8A185f9980708d0eAEC5B289714F56f8d",
+        "eth_addresses": ["0x002471b8A185f9980708d0eAEC5B289714F56f8d"]
+      },
+      {
+        "logical_id": "201",
+        "eu_reference": "EU.3502.46",
+        "subject_type": "E",
+        "names": ["Abu Nidal Organisation", "ANO", "Fatah Revolutionary Council"],
+        "programme": "TERR",
+        "remark": "",
+        "eth_addresses": []
+      },
+      {
+        "logical_id": "13",
+        "eu_reference": "EU.27.28",
+        "subject_type": "P",
+        "names": ["Saddam Hussein Al-Tikriti", "Abu Ali"],
+        "programme": "IRQ",
+        "remark": "(UNSC RESOLUTION 1483)",
+        "eth_addresses": []
+      }
+    ]
+  },
+  "ofac_sdn": {
+    "source_url": "https://www.treasury.gov/ofac/downloads/sdn.csv",
+    "fetched_at": "2026-10-19",
+    "entries": [
+      {
+        "ent_num": "27307",
+        "name": "LAZARUS GROUP",
+        "sdn_type": "entity",
+        "program": "DPRK3",
+        "eth_addresses": [
+          "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+          "0xa0e1c89Ef1a489c9C7dE96311eD5Ce5D32c20E4B",
+          "0x3Cffd56B47B7b41c56258D9C7731ABaDc360E073",
+          "0x53b6936513e738f44FB50d2b9476730C0Ab3Bfc1",
+          "0x35fB6f6DB4fb05e6A4cE86f2C93691425626d4b1"
+        ]
+      },
+      {
+        "ent_num": "36025",
+        "name": "GARANTEX EUROPE OU",
+        "sdn_type": "entity",
+        "program": "RUSSIA-EO14024; CYBER4",
+        "eth_addresses": [
+          "0x7FF9cFad3877F21d41Da833E2F775dB0569eE3D9",
+          "0x8Dce2aAC0dE82bdCAf6b4373B79f94331b8e4995",
+          "0xf4377edA661e04B6DDA78969796Ed31658D602D4",
+          "0xb338962B92CD818D6aef0A32a9ECD01212a71f33"
+        ]
+      },
+      {
+        "ent_num": "24003",
+        "name": "MESRI, Behzad",
+        "sdn_type": "individual",
+        "program": "HRIT-IR; CYBER2",
+        "eth_addresses": []
+      }
+    ]
+  },
+  "cz_national": {
+    "$comment": "Czech national sanctions list under Act No. 1/2023 Sb. is published by the Ministry of Foreign Affairs as a PDF and is not parsed at runtime. Add hand-maintained entries here as {names: [...], reason: '...'} if the demo needs them.",
+    "source_url": "https://mzv.gov.cz/jnp/cz/zahranicni_vztahy/sankcni_politika/sankcni_seznam_cr/vnitrostatni_sankcni_seznam.html",
+    "as_of": "2026-07-24",
+    "entries": []
+  }
+}

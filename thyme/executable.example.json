@@ -1,0 +1,11 @@
+{
+  "projectId": "PROJECT_ID",
+  "functionId": "FUNCTION_ID",
+  "profileId": "PROFILE_ID",
+  "name": "pay-invoice",
+  "trigger": { "type": "cron", "cronspec": "* * * * *" },
+  "args": "{\"apiUrl\":\"https://YOUR_APP_HOST\",\"safeAddress\":\"0xYOUR_DEMO_SAFE\"}",
+  "secretBindings": [{ "secretId": "SECRET_ID", "envKey": "THYME_PULL_TOKEN" }],
+  "gasMode": "sponsored",
+  "sandboxRuntime": "daytona"
+}

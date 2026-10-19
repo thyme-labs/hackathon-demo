@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Thyme Payroll palette. Dark only. */
+:root {
+  color-scheme: dark;
+  --radius: 0.5rem;
+
+  --background: #0b0b0c;
+  --foreground: #ededed;
+  --card: #131315;
+  --card-foreground: #ededed;
+  --popover: #1a1a1d;
+  --popover-foreground: #ededed;
+  --primary: oklch(0.65 0.08 165);
+  --primary-foreground: #0b2019;
+  --secondary: #1a1a1d;
+  --secondary-foreground: #c7c7cb;
+  --muted: #1a1a1d;
+  --muted-foreground: #8a8a8f;
+  --accent: #1a1a1d;
+  --accent-foreground: #ededed;
+  --destructive: #d87979;
+  --destructive-foreground: #0b0b0c;
+  --border: rgb(255 255 255 / 0.06);
+  --input: rgb(255 255 255 / 0.08);
+  --ring: oklch(0.65 0.08 165);
+  --chart-1: oklch(0.65 0.08 165);
+  --chart-2: #c5a36c;
+  --chart-3: #d87979;
+  --chart-4: #8a8a8f;
+  --chart-5: #ededed;
+  --sidebar: #0b0b0c;
+  --sidebar-foreground: #ededed;
+  --sidebar-primary: oklch(0.65 0.08 165);
+  --sidebar-primary-foreground: #0b2019;
+  --sidebar-accent: #1a1a1d;
+  --sidebar-accent-foreground: #ededed;
+  --sidebar-border: rgb(255 255 255 / 0.06);
+  --sidebar-ring: oklch(0.65 0.08 165);
+}
+
+@theme inline {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Product tokens (use these in app code) */
+  --color-bg: #0b0b0c;
+  --color-surface: #131315;
+  --color-raised: #1a1a1d;
+  --color-text: #ededed;
+  --color-dim: #8a8a8f;
+  --color-sage: oklch(0.65 0.08 165);
+  --color-sage-ink: #0b2019;
+  --color-blocked: #d87979;
+  --color-paused: #c5a36c;
+  --color-hairline: rgb(255 255 255 / 0.06);
+  --color-track: #29292d;
+
+  --spacing-rail: 4.75rem;
+  --tracking-tightest: -0.055em;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply bg-background text-foreground antialiased;
+  }
+  body {
+    @apply min-h-screen bg-background font-sans text-sm tracking-tight text-foreground;
+  }
+  .font-mono,
+  .mono {
+    letter-spacing: -0.05em;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility animate-rise {
+  animation: rise 0.35s ease-out both;
+}

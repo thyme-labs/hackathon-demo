@@ -1,0 +1,49 @@
+{
+  "name": "thyme-payroll",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --bun vite dev --port 3000",
+    "build": "bun --bun vite build",
+    "start": "bun .output/server/index.mjs",
+    "typecheck": "tsc --noEmit",
+    "fork-test": "bun run scripts/fork-test.ts",
+    "demo:invoices": "bun demo/make-invoices.ts",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
+    "@aws-sdk/client-bedrock-runtime": "3.1152.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/react-query": "5.104.4",
+    "@tanstack/react-router": "1.170.45",
+    "@tanstack/react-router-ssr-query": "1.167.3",
+    "@tanstack/react-start": "1.169.3",
+    "@walletconnect/ethereum-provider": "2.26.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "connectkit": "1.9.2",
+    "date-fns": "4.4.0",
+    "lucide-react": "1.59.0",
+    "nitro": "3.0.260610-beta",
+    "pdf-lib": "1.17.1",
+    "radix-ui": "1.8.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "sonner": "2.0.8",
+    "tailwind-merge": "3.7.0",
+    "tailwindcss": "4.3.3",
+    "viem": "2.57.7",
+    "wagmi": "2.19.5",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
+  }
+}

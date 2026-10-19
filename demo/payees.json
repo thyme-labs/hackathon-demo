@@ -1,0 +1,244 @@
+{
+  "$comment": "Synthetic contractors for the Thyme Payroll demo. Wallets derive from keccak256(\"thyme-payroll-demo:<id>\") private keys (testnet only, public by design). No real PII.",
+  "key_derivation": "privateKey = keccak256(utf8(\"thyme-payroll-demo:\" + id)); attacker uses id \"attacker\"",
+  "attacker_wallet": "0x924Ab21c8a5b8753e45d083251Aec52a3f66cD1f",
+  "injection_wallet": "0xBAD000000000000000000000000000000000dEaD",
+  "payees": [
+    {
+      "id": "anna-kovalenko",
+      "name": "Anna Kovalenko",
+      "printed_name": "Anna Kovalenko",
+      "type": "person",
+      "country": "UA",
+      "tax_id": "UA-SYNTH-0000000001",
+      "wallet": "0x508Aa110D78C089245fd1667723F08B5B379a493",
+      "email": "anna.kovalenko@example.com",
+      "lei": null,
+      "website": null,
+      "monthly_limit_eur": 1500,
+      "currency": "EUR",
+      "address": "12 Zrazkova St, Lviv, Ukraine",
+      "footprint": {
+        "exists": true,
+        "matches_country": true,
+        "fraud_reports": false,
+        "summary": "Portfolio site and design-community profile consistent with a Lviv-based product designer; no complaints found."
+      },
+      "ownership_proof": {
+        "wallet": "0x508Aa110D78C089245fd1667723F08B5B379a493",
+        "chainId": 11155111,
+        "signature": "0x0e889832e427074db01dad16fe75f108ef67ea4f6458c884bb01be441e5aed11211ef6c93ea63231c58a1dd0d87c22ce3c9acaf3d3d7bcb29993c9f39b1481c91c",
+        "signedAt": "2026-10-19T08:00:00Z",
+        "message": {
+          "beneficiaryId": "anna-kovalenko",
+          "wallet": "0x508Aa110D78C089245fd1667723F08B5B379a493",
+          "nonce": "demo-anna-kovalenko",
+          "issuedAt": "2026-10-19T08:00:00Z",
+          "statement": "I control this wallet and accept EURC payouts from Thyme Payroll on Ethereum Sepolia."
+        }
+      }
+    },
+    {
+      "id": "nino-beridze",
+      "name": "Nino Beridze",
+      "printed_name": "Nino Beridze",
+      "type": "person",
+      "country": "GE",
+      "tax_id": "GE-SYNTH-00000000002",
+      "wallet": "0x625f81bE3A3eF53ba6f425B8fEbEaA6F172Ccc53",
+      "email": "nino.beridze@example.com",
+      "lei": null,
+      "website": null,
+      "monthly_limit_eur": 1200,
+      "currency": "USD",
+      "address": "3 Nimushi Ave, Tbilisi, Georgia",
+      "footprint": {
+        "exists": true,
+        "matches_country": true,
+        "fraud_reports": false,
+        "summary": "Developer profiles and conference talk in Tbilisi match the stated country; nothing adverse."
+      },
+      "ownership_proof": {
+        "wallet": "0x625f81bE3A3eF53ba6f425B8fEbEaA6F172Ccc53",
+        "chainId": 11155111,
+        "signature": "0x8e4e6533c012fe927428df174a4f7cd72e87c7c2d6566c61be3be6058f71f0357a4f60f9a859ce7a6ad0845e7148e64d93b127aca9cf5faacfdf2e399eb1d73a1b",
+        "signedAt": "2026-10-19T08:00:00Z",
+        "message": {
+          "beneficiaryId": "nino-beridze",
+          "wallet": "0x625f81bE3A3eF53ba6f425B8fEbEaA6F172Ccc53",
+          "nonce": "demo-nino-beridze",
+          "issuedAt": "2026-10-19T08:00:00Z",
+          "statement": "I control this wallet and accept EURC payouts from Thyme Payroll on Ethereum Sepolia."
+        }
+      }
+    },
+    {
+      "id": "priya-sharma",
+      "name": "Priya Sharma",
+      "printed_name": "Priya Sharma",
+      "type": "person",
+      "country": "IN",
+      "tax_id": "IN-SYNTH-PAN-00000003",
+      "wallet": "0x5Ed80b4724AB45c5B0567706Ea19bD79a79E0844",
+      "email": "priya.sharma@example.com",
+      "lei": null,
+      "website": null,
+      "monthly_limit_eur": 1000,
+      "currency": "INR",
+      "address": "21 Udaharan Rd, Pune, India",
+      "footprint": {
+        "exists": true,
+        "matches_country": true,
+        "fraud_reports": false,
+        "summary": "Common name; a Pune-based QA engineer profile matches the invoice details, no fraud reports."
+      },
+      "ownership_proof": {
+        "wallet": "0x5Ed80b4724AB45c5B0567706Ea19bD79a79E0844",
+        "chainId": 11155111,
+        "signature": "0x29440699e170dd7538fdbc3fa5bdedb040431458df470366efeb53c9aa6b000b01499b62a92fe88e5285e393b99c991016580f9050b88a4c0ec5b850545bb7f71b",
+        "signedAt": "2026-10-19T08:00:00Z",
+        "message": {
+          "beneficiaryId": "priya-sharma",
+          "wallet": "0x5Ed80b4724AB45c5B0567706Ea19bD79a79E0844",
+          "nonce": "demo-priya-sharma",
+          "issuedAt": "2026-10-19T08:00:00Z",
+          "statement": "I control this wallet and accept EURC payouts from Thyme Payroll on Ethereum Sepolia."
+        }
+      }
+    },
+    {
+      "id": "studio-nord-ltd",
+      "name": "Studio Nord Ltd",
+      "printed_name": "Studio Nord Ltd",
+      "type": "company",
+      "country": "GB",
+      "tax_id": "GB-SYNTH-VAT-000000004",
+      "wallet": "0x138E3941Af29D1AaA2b084dAfB691F734694cbce",
+      "email": "accounts@studionord.example",
+      "lei": null,
+      "website": "https://studionord.example",
+      "monthly_limit_eur": 2500,
+      "currency": "GBP",
+      "address": "9 Sample Lane, Leeds, United Kingdom",
+      "footprint": {
+        "exists": true,
+        "matches_country": true,
+        "fraud_reports": false,
+        "summary": "Company website and a UK register entry for a small design studio in Leeds; no warnings."
+      },
+      "ownership_proof": {
+        "wallet": "0x138E3941Af29D1AaA2b084dAfB691F734694cbce",
+        "chainId": 11155111,
+        "signature": "0x0add7510b9ea20cddc299d980e7b840d2a001616269ef7eefd47798b61aebd9b5a00239b15b2e1fffdde7ee1f64890f55587c079a3abad330ecc3c3e36e9891f1c",
+        "signedAt": "2026-10-19T08:00:00Z",
+        "message": {
+          "beneficiaryId": "studio-nord-ltd",
+          "wallet": "0x138E3941Af29D1AaA2b084dAfB691F734694cbce",
+          "nonce": "demo-studio-nord-ltd",
+          "issuedAt": "2026-10-19T08:00:00Z",
+          "statement": "I control this wallet and accept EURC payouts from Thyme Payroll on Ethereum Sepolia."
+        }
+      }
+    },
+    {
+      "id": "marko-petrovic",
+      "name": "Marko Petrović",
+      "printed_name": "Marko Petrovic",
+      "type": "person",
+      "country": "RS",
+      "tax_id": "RS-SYNTH-000000005",
+      "wallet": "0x28361e0A19c18010b5c35904405a9452c43Dd39C",
+      "email": "marko.petrovic@example.com",
+      "lei": null,
+      "website": null,
+      "monthly_limit_eur": 900,
+      "currency": "EUR",
+      "address": "7 Primer Blvd, Novi Sad, Serbia",
+      "footprint": {
+        "exists": true,
+        "matches_country": true,
+        "fraud_reports": false,
+        "summary": "Open-source contributions and a Novi Sad meetup listing match; nothing adverse."
+      },
+      "ownership_proof": {
+        "wallet": "0x28361e0A19c18010b5c35904405a9452c43Dd39C",
+        "chainId": 11155111,
+        "signature": "0x5741dec586e7ef0c50134f216d3c24dd91ee6d34a12e973b2f7e19af63f046b12023462b818559c4a197c909066aa77d83498d5c785ea7ce4c4f3b53f95a534d1c",
+        "signedAt": "2026-10-19T08:00:00Z",
+        "message": {
+          "beneficiaryId": "marko-petrovic",
+          "wallet": "0x28361e0A19c18010b5c35904405a9452c43Dd39C",
+          "nonce": "demo-marko-petrovic",
+          "issuedAt": "2026-10-19T08:00:00Z",
+          "statement": "I control this wallet and accept EURC payouts from Thyme Payroll on Ethereum Sepolia."
+        }
+      }
+    }
+  ],
+  "invoices": [
+    {
+      "file": "invoices/INV-0388-studio-nord.pdf",
+      "number": "INV-0388",
+      "payee_id": "studio-nord-ltd",
+      "currency": "GBP",
+      "gross": 780,
+      "scenario": "normal"
+    },
+    {
+      "file": "invoices/INV-0401-marko.pdf",
+      "number": "INV-0401",
+      "payee_id": "marko-petrovic",
+      "currency": "EUR",
+      "gross": 300,
+      "scenario": "normal"
+    },
+    {
+      "file": "invoices/INV-0412-anna.pdf",
+      "number": "INV-0412",
+      "payee_id": "anna-kovalenko",
+      "currency": "EUR",
+      "gross": 600,
+      "scenario": "normal"
+    },
+    {
+      "file": "invoices/INV-0418-nino.pdf",
+      "number": "INV-0418",
+      "payee_id": "nino-beridze",
+      "currency": "USD",
+      "gross": 1100,
+      "scenario": "normal"
+    },
+    {
+      "file": "invoices/INV-0423-priya.pdf",
+      "number": "INV-0423",
+      "payee_id": "priya-sharma",
+      "currency": "INR",
+      "gross": 62000,
+      "scenario": "normal"
+    },
+    {
+      "file": "invoices/INV-0431-anna.pdf",
+      "number": "INV-0431",
+      "payee_id": "anna-kovalenko",
+      "currency": "EUR",
+      "gross": 440,
+      "scenario": "normal"
+    },
+    {
+      "file": "invoices/INV-0432-anna-fraud.pdf",
+      "number": "INV-0432",
+      "payee_id": "anna-kovalenko",
+      "currency": "EUR",
+      "gross": 600,
+      "scenario": "fraud_swapped_wallet"
+    },
+    {
+      "file": "invoices/INV-0440-marko-injection.pdf",
+      "number": "INV-0440",
+      "payee_id": "marko-petrovic",
+      "currency": "EUR",
+      "gross": 300,
+      "scenario": "prompt_injection"
+    }
+  ]
+}

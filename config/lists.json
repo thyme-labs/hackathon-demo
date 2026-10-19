@@ -1,0 +1,105 @@
+{
+  "$comment": "Dated country-risk tables used by the country_risk check. Country codes are ISO 3166-1 alpha-2. Update the as_of dates when you refresh a table.",
+  "eu_high_risk_third_countries": {
+    "source": "Commission Delegated Regulation (EU) 2016/1675 as amended by (EU) 2025/1184, (EU) 2026/46 and (EU) 2026/83",
+    "source_url": "https://finance.ec.europa.eu/financial-crime/anti-money-laundering-and-countering-financing-terrorism-international-level_en",
+    "as_of": "2026-01-29",
+    "treatment": "warn",
+    "countries": {
+      "AF": "Afghanistan",
+      "DZ": "Algeria",
+      "AO": "Angola",
+      "BO": "Bolivia",
+      "VG": "British Virgin Islands",
+      "CM": "Cameroon",
+      "CI": "Cote d'Ivoire",
+      "KP": "Democratic People's Republic of Korea",
+      "CD": "Democratic Republic of the Congo",
+      "HT": "Haiti",
+      "IR": "Iran",
+      "KE": "Kenya",
+      "LA": "Laos",
+      "LB": "Lebanon",
+      "MC": "Monaco",
+      "MM": "Myanmar",
+      "NA": "Namibia",
+      "NP": "Nepal",
+      "RU": "Russian Federation",
+      "SS": "South Sudan",
+      "SY": "Syria",
+      "TT": "Trinidad and Tobago",
+      "VU": "Vanuatu",
+      "VE": "Venezuela",
+      "VN": "Vietnam",
+      "YE": "Yemen"
+    }
+  },
+  "fatf_increased_monitoring": {
+    "source": "FATF, Jurisdictions under Increased Monitoring (grey list), plenary statement of 19 June 2026. Next plenary 26-30 October 2026.",
+    "source_url": "https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html",
+    "as_of": "2026-06-19",
+    "treatment": "warn",
+    "countries": {
+      "AO": "Angola",
+      "BO": "Bolivia",
+      "BA": "Bosnia and Herzegovina",
+      "BG": "Bulgaria",
+      "CM": "Cameroon",
+      "CI": "Cote d'Ivoire",
+      "CD": "Democratic Republic of the Congo",
+      "HT": "Haiti",
+      "IQ": "Iraq",
+      "KE": "Kenya",
+      "KW": "Kuwait",
+      "LA": "Laos",
+      "LB": "Lebanon",
+      "MC": "Monaco",
+      "NP": "Nepal",
+      "PG": "Papua New Guinea",
+      "SS": "South Sudan",
+      "SY": "Syria",
+      "VE": "Venezuela",
+      "VN": "Vietnam",
+      "VG": "Virgin Islands (UK)",
+      "YE": "Yemen"
+    }
+  },
+  "fatf_call_for_action": {
+    "source": "FATF, High-Risk Jurisdictions subject to a Call for Action (black list), 19 June 2026",
+    "source_url": "https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html",
+    "as_of": "2026-06-19",
+    "treatment": "fail",
+    "countries": {
+      "IR": "Iran",
+      "KP": "Democratic People's Republic of Korea",
+      "MM": "Myanmar"
+    }
+  },
+  "eu_comprehensive_sanctions_regimes": {
+    "source": "EU sanctions regimes with broad sectoral or financial restrictions (Regulations (EU) 833/2014 and 269/2014 Russia, (EC) 765/2006 Belarus, (EU) 267/2012 Iran, (EU) 2017/1509 DPRK, (EU) 36/2012 Syria). Country-level block for an unlicensed payroll flow; individual designations are screened separately.",
+    "source_url": "https://www.sanctionsmap.eu/",
+    "as_of": "2026-10-15",
+    "treatment": "fail",
+    "countries": {
+      "RU": "Russian Federation",
+      "BY": "Belarus",
+      "IR": "Iran",
+      "KP": "Democratic People's Republic of Korea",
+      "SY": "Syria"
+    }
+  },
+  "fx_static_fallback": {
+    "$comment": "Last-resort mid rates (EUR per 1 unit of currency) used only when Tatum and Frankfurter are both unreachable. Cross-rated from the CNB fixing of 2026-10-16 (EUR 24.325 CZK). Always reported as warn, never as pass.",
+    "as_of": "2026-10-16",
+    "source": "CNB daily fixing 2026-10-16, cross-rated to EUR",
+    "source_url": "https://api.cnb.cz/cnbapi/exrates/daily?date=2026-10-16&lang=EN",
+    "rates": {
+      "USD": 0.88888,
+      "GBP": 1.18557,
+      "INR": 0.00936,
+      "CHF": 1.079096,
+      "PLN": 0.2289,
+      "CZK": 0.04111
+    }
+  }
+}

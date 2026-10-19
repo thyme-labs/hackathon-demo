@@ -1,0 +1,11 @@
+node_modules
+.output
+.nitro
+.tanstack
+dist
+data
+.env
+.env.*
+.git
+pitch
+*.log

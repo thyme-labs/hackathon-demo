@@ -1,0 +1,230 @@
+{
+  "$schema_note": "Sourced fee/time assumptions for the payout comparison card. Every block carries source_url + fetched_on. Numbers are snapshots; the app recomputes the on-chain side live. All CZK->EUR conversions in this file use the ECB reference rate of 2026-10-16 (EUR/CZK 24.323); the accounting CSV uses the CNB fixing instead.",
+  "version": "2026-10-19",
+  "fx_reference": {
+    "base": "EUR",
+    "date": "2026-10-16",
+    "rates": { "CZK": 24.323, "USD": 1.1253, "GBP": 0.84385, "INR": 106.864 },
+    "source_url": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+    "fetched_on": "2026-10-19",
+    "note": "ECB daily reference rates (Friday fixing). Used only to express CZK/USD tariff lines in EUR."
+  },
+  "sepa": {
+    "countries": [
+      "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+      "IS", "LI", "NO",
+      "AD", "MC", "SM", "VA", "CH", "GB", "GI", "GG", "JE", "IM", "RS"
+    ],
+    "eea_countries": [
+      "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+      "IS", "LI", "NO"
+    ],
+    "reach_notes": {
+      "GB": "SEPA member (non-EEA). Receiving banks charge GBP 0 for EUR SEPA receipts; conversion to GBP up to ~2 % (Barclays business tariff, Mar 2026).",
+      "RS": "SEPA SCT live since 5 May 2026 (18 of 19 banks, indirect participants); no SCT Inst yet. Receiving-bank fee unverified.",
+      "UA": "Not in SEPA. Bill 14327-d stalled; EPC application planned Dec 2026.",
+      "GE": "Not in SEPA. NBG applied 20 Sep 2022; not on EPC list v8.0.",
+      "IN": "Not in SEPA. INR credit mandatory for residents (FEMA)."
+    },
+    "source_url": "https://www.europeanpaymentscouncil.eu/sites/default/files/kb/file/2025-12/EPC409-09%20EPC%20List%20of%20SEPA%20Scheme%20Countries%20v8.0.pdf",
+    "fetched_on": "2026-10-19",
+    "note": "EPC409-09 v8.0 (24 Dec 2025): 27 EU + 3 EEA + 11 non-EEA = 41. Serbia admitted by EPC Board 22 May 2025 (NBS: https://www.nbs.rs/sr/scripts/showcontent/index.html?id=21468).",
+    "sct": {
+      "default_bank": "CSOB",
+      "banks": {
+        "CSOB": { "fee_czk": 6, "source_url": "https://www.csob.cz/documents/10710/423623/sazebnik-sme-251101-cz.pdf", "fetched_on": "2026-10-19", "note": "SME sazebnik ve zneni k 1.11.2025: SEPA/EUR within EU/EEA 6 Kc." },
+        "KB": { "fee_czk": 0, "source_url": "https://www.mesec.cz/clanky/komerni-banka-obchodni-podminky-zmena-kveten-2026/", "fetched_on": "2026-10-19", "note": "Business price list effective 1.5.2026: SEPA 0 Kc." },
+        "Fio": { "fee_czk": 0, "source_url": "https://www.fio.cz/bankovni-sluzby/platebni-styk/cizomenovy", "fetched_on": "2026-10-19", "note": "Europlatba free; instant EUR payment free (cenik 2.4.2026)." },
+        "RB": { "fee_czk": 5, "source_url": "https://www.rb.cz/attachments/ceniky/cenik-corp-1.pdf", "fetched_on": "2026-10-19", "note": "Firemni ucet Basic: first 10 SEPA/month included, then 5 Kc (cenik 1.5.2026, row 1.2)." }
+      },
+      "cutoff_local": "14:00",
+      "credit_rule": "Credited to the payee's PSP by the end of the next business day after receipt (PSD2 Art. 83(1)); typically same day.",
+      "credit_local_time": "16:00",
+      "business_days_only": true,
+      "source_url": "https://eur-lex.europa.eu/eli/dir/2015/2366/oj/eng",
+      "fetched_on": "2026-10-19"
+    },
+    "instant": {
+      "fee_czk": 0,
+      "seconds": 10,
+      "availability": "24/7/365",
+      "cz_receive_mandatory_from": "2027-01-09",
+      "cz_send_mandatory_from": "2027-07-09",
+      "cz_banks_sending_today": ["Fio", "UniCredit", "J&T", "Oberbank", "Partners"],
+      "fio_cap_eur_per_tx": 4000,
+      "source_url": "https://www.cnb.cz/en/payments/certis/instant-payments/",
+      "fetched_on": "2026-10-19",
+      "note": "EPC SCT Inst rulebook 2025 (in force 5 Oct 2025): no scheme-level cap; IPR (EU) 2024/886 deadlines for non-euro Member States. Most Czech business accounts cannot send instant EUR today."
+    },
+    "receiver_fx_margin_pct": {
+      "GB": { "value": 2.0, "applies_when": "EUR auto-converted to a GBP account", "source_url": "https://www.barclays.co.uk/content/dam/documents/business/Accounts/BAR_9912445_UK-0821_Online.pdf", "fetched_on": "2026-10-19", "note": "Barclays business tariff Mar 2026: SEPA receipt GBP 0; conversion charge <= 2 % business (Lloyds 2.6 %)." }
+    }
+  },
+  "swift": {
+    "default_bank": "CSOB",
+    "charge_option": "SHA",
+    "banks": {
+      "CSOB": {
+        "label": "CSOB (SME, internet banking)",
+        "rule": { "kind": "pct", "pct": 1.0, "min_czk": 250, "max_czk": 1500 },
+        "d_plus_1_non_eea": true,
+        "cutoff_local": "14:00",
+        "source_url": "https://www.csob.cz/documents/10710/423623/sazebnik-sme-251101-cz.pdf",
+        "fetched_on": "2026-10-19",
+        "note": "Sazebnik pro pravnicke osoby ve zneni k 1.11.2025, Zahranicni platebni styk: 'Odchozi uhrada do zahranici 1 %, min. 250 Kc, max. 1 500 Kc'. Credit to beneficiary PSP next business day for non-EEA. 'Promptni provedeni' 500 Kc does not speed crediting."
+      },
+      "KB": {
+        "label": "Komercni banka (business)",
+        "rule": { "kind": "pct", "pct": 1.0, "min_czk": 200, "max_czk": 1200, "flat_below_czk": 20000, "flat_fee_czk": 200, "our_surcharge_czk": 800 },
+        "d_plus_1_non_eea": false,
+        "cutoff_local": "14:00",
+        "source_url": "https://www.mesec.cz/clanky/komerni-banka-obchodni-podminky-zmena-kveten-2026/",
+        "fetched_on": "2026-10-19",
+        "note": "Cenik effective 1.5.2026: SHA up to 20 000 Kc 200 Kc; above 1 %, max. 1 200 Kc; OUR surcharge 800 Kc (non-EEA only). D+0 for EUR/USD before 14:00-15:00; urgent +600 Kc."
+      },
+      "Fio": {
+        "label": "Fio banka",
+        "rule": { "kind": "flat", "fee_czk": 200 },
+        "d_plus_1_non_eea": false,
+        "cutoff_local": "14:00",
+        "source_url": "https://www.fio.cz/bankovni-sluzby/platebni-styk/cizomenovy",
+        "fetched_on": "2026-10-19",
+        "note": "SHA/BEN 200 Kc; OUR 500 Kc non-EUR; EUR non-SEPA OUR 0.5 % min 200 max 1 250 Kc (cenik 2.4.2026)."
+      },
+      "RB": {
+        "label": "Raiffeisenbank (Firemni ucet Basic)",
+        "rule": { "kind": "flat", "fee_czk": 300 },
+        "d_plus_1_non_eea": false,
+        "cutoff_local": "14:00",
+        "source_url": "https://www.rb.cz/attachments/ceniky/cenik-corp-1.pdf",
+        "fetched_on": "2026-10-19",
+        "note": "Cenik pro firmy a korporace ucinny 1.5.2026, 3.2 row 1.8: Basic 300 Kc outgoing; outside tariffs 1 % min 500 max 1 500 Kc; express +500 Kc; OUR: other banks' fees charged in full afterwards."
+      }
+    },
+    "correspondent_deduction": {
+      "usd_low": 15,
+      "usd_high": 50,
+      "default_eur": 25,
+      "eur_low": 13,
+      "eur_high": 44,
+      "source_url": "https://wise.com/help/articles/3KEJruODkhi59TZbSxO2xn/what-are-swift-correspondent-fees-when-sending-and-receiving-money",
+      "fetched_on": "2026-10-19",
+      "note": "Wise estimate of total correspondent charges per transfer under SHA (USD 15-50, 'might be higher'). BIS CPMI 2022: on average just over one intermediary per payment (https://www.bis.org/publications/swift-gpi-data-indicate-drivers-fast-cross-border-payments.pdf). Not multiplied by intermediary count."
+    },
+    "receiver": {
+      "UA": { "fee_eur": 0, "fx_margin_pct": 0, "verified": true, "source_url": "https://en.interfax.com.ua/news/economic/1175391.html", "fetched_on": "2026-10-19", "note": "monobank abolished incoming SWIFT fees 10 Jun 2026; PrivatBank 'per tariff' (third-party: 2 % on FX cards, unverified)." },
+      "GE": { "fee_eur": 5, "fx_margin_pct": 0, "verified": false, "source_url": "https://www.expatden.com/georgia/best-banks-for-expats-georgia/", "fetched_on": "2026-10-19", "note": "TBC 0.1 % min 5 max 20 on incoming > 1,000 (third-party, 2026); Bank of Georgia publishes no incoming fee." },
+      "IN": { "fee_eur": 3, "fx_margin_pct": 2.5, "fx_margin_range_pct": [1.5, 3.5], "verified": false, "source_url": "https://www.skydo.com/blog/bank-charges-for-inward-remittance", "fetched_on": "2026-10-19", "note": "HDFC 0 fee but TT-buying rate 1.5-3.5 % below mid; SBI INR 100-500 + 18 % GST; INR credit mandatory (FEMA)." },
+      "GB": { "fee_eur": 0, "fx_margin_pct": 2.0, "verified": true, "source_url": "https://www.barclays.co.uk/content/dam/documents/business/Accounts/BAR_9912445_UK-0821_Online.pdf", "fetched_on": "2026-10-19", "note": "Barclays business: SEPA/EEA EUR receipt GBP 0; conversion <= 2 %. Applied only if the SWIFT route is used instead of SEPA." },
+      "RS": { "fee_eur": 0, "fx_margin_pct": 0, "verified": false, "source_url": "https://www.bancaintesa.rs/en/privreda/obavestenje-o-primeni-SEPA-placanja.html", "fetched_on": "2026-10-19", "note": "EUR credited to a devizni racun; receiving fee unverified, modelled as 0." },
+      "default": { "fee_eur": 0, "fx_margin_pct": 0, "verified": false, "source_url": "", "fetched_on": "2026-10-19", "note": "No receiver-side data for this country; modelled as 0 (understates the baseline)." }
+    },
+    "time": {
+      "overall_median_h": 1.63,
+      "overall_mean_h": 8.6,
+      "region_median_h": { "europe": 0.65, "southern_central_asia": 22.1, "default": 1.63 },
+      "country_region": { "GB": "europe", "RS": "europe", "UA": "europe", "GE": "default", "IN": "southern_central_asia" },
+      "to_bank_within_1h_pct": 90,
+      "to_customer_within_1h_pct": 43,
+      "release_local_time_d0": "14:00",
+      "release_local_time_d1": "09:00",
+      "business_days_only": true,
+      "model": "valueDate = submission day if it is a Prague business day before the bank cut-off, else the next business day; release = valueDate at the cut-off (D+0) or the following business day 09:00 when the bank value-dates non-EEA payments D+1 (CSOB); credit = release + BIS regional median end-to-end time, rolled to 09:00 of the next business day if it lands on a weekend or Czech public holiday.",
+      "source_url": "https://www.bis.org/publications/swift-gpi-data-indicate-drivers-fast-cross-border-payments.pdf",
+      "fetched_on": "2026-10-19",
+      "note": "BIS CPMI (8 Feb 2022; ~20 M gpi payments, Sep-Oct 2020): median 1 h 38 m, mean 8 h 36 m; regional medians are Graph 1 readings (low precision). Swift Oct 2024: 90 % reach the destination bank within 1 h, 43 % credited to the end customer within 1 h (https://www.swift.com/news-events/press-releases/swift-cross-border-payment-processing-speed-stretches-further-ahead-g20-target)."
+    }
+  },
+  "wise": {
+    "quote_amount_eur": 1000,
+    "quotes": {
+      "INR": { "fee_eur": 6.18, "fee_eur_bank_funded": 8.53, "hours": 0.01, "verified": true, "source_url": "https://wise.com/ie/send-money/send-money-to-india", "fetched_on": "2026-10-19", "note": "'In seconds'; mid-market rate 106.384." },
+      "UAH": { "fee_eur": 4.22, "fee_eur_bank_funded": null, "hours": 2, "verified": true, "source_url": "https://wise.com/ie/send-money/send-money-to-ukraine", "fetched_on": "2026-10-19", "note": "'Today - in 2 hours'; non-PrivatBank recipients capped at 29,999 UAH per transfer. (The '16.97, waived' figure is from a Mar-2022 blog, not current.)" },
+      "GEL": { "fee_eur": 15.99, "fee_eur_bank_funded": 18.29, "hours": 3, "verified": true, "source_url": "https://wise.com/gb/send-money/send-money-to-georgia", "fetched_on": "2026-10-19", "note": "'In 3 hours' (1.6-1.8 %)." },
+      "RSD": { "fee_eur": 22.16, "fee_eur_bank_funded": 23.84, "hours": 72, "verified": true, "source_url": "https://wise.com/ie/send-money/send-money-to-serbia", "fetched_on": "2026-10-19", "note": "Re-fetched 10:55 UTC: 22.16 (account) / 23.84 (bank), rate 117.398, arrival 'by Thursday 22 October' (~3 days); dynamic pricing." },
+      "GBP": { "fee_eur": 4.0, "fee_eur_bank_funded": null, "hours": 2, "verified": false, "source_url": "https://wise.com/gb/pricing/", "fetched_on": "2026-10-19", "note": "Live quote could not be fetched (dynamic calculator); ~0.3-0.5 % estimate, unverified." }
+    },
+    "availability": "24/7 app; bank-funded legs on business days",
+    "scaling": "fee scaled linearly from the EUR 1,000 quote (Wise fees are fixed + %; linear scaling is an approximation)",
+    "fetched_on": "2026-10-19"
+  },
+  "platforms": {
+    "payoneer": { "receive_from_eu_bank_pct": 1.0, "withdraw_local_bank_pct": [1.2, 4.0], "same_country_withdraw_usd": 1.5, "source_url": "https://www.payoneer.com/pricing/", "fetched_on": "2026-10-19", "note": "Pricing page last updated 1 Jan 2026; figures are Payoneer's own 'estimates'." },
+    "deel": { "usd_per_contractor_month": 49, "source_url": "https://www.deel.com/pricing/", "fetched_on": "2026-10-19" },
+    "remote": { "usd_per_contractor_month": 29, "source_url": "https://remote.com/pricing", "fetched_on": "2026-10-19" }
+  },
+  "eurc": {
+    "token": { "symbol": "EURC", "issuer": "Circle Internet Financial Europe SAS", "issuer_lei": "969500OYUDADGZKCR583", "dti": "FFG 13XTMPZT3", "sepolia_address": "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4", "decimals": 6, "source_url": "https://www.esma.europa.eu/sites/default/files/2024-12/EMTWP.csv", "fetched_on": "2026-10-19", "note": "ESMA interim MiCA EMT register: ACPR, authorised 01/07/2024. EEA redemption at par, no fee (Circle EEA Terms s.3.4, s.24.12)." },
+    "ethereum": {
+      "gas_plain_transfer_new_recipient": 53859,
+      "gas_plain_transfer_existing_recipient": 43088,
+      "gas_roles_path_range": [105000, 145000],
+      "gas_budget_roles_path": 150000,
+      "basefee_gwei": 0.12,
+      "basefee_gwei_range": [0.055, 0.128],
+      "tip_p50_gwei": 0.05,
+      "tip_p90_gwei": 1.44,
+      "equivalent_gas_price_gwei": 0.17,
+      "eth_eur": 2156.05,
+      "eth_usd": 2416.32,
+      "price_source_url": "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd,eur",
+      "price_fetched_at": "2026-10-19T10:36:00Z",
+      "fee_source_url": "https://eth.drpc.org",
+      "fee_fetched_at": "2026-10-19T10:40:00Z",
+      "cost_eur_plain_range": [0.02, 0.18],
+      "cost_eur_roles_range": [0.05, 0.49],
+      "inclusion_seconds": 12,
+      "finality_minutes_range": [12.8, 15],
+      "availability": "24/7/365",
+      "source_url": "https://ethereum.org/en/developers/docs/consensus-mechanisms/pos/",
+      "fetched_on": "2026-10-19",
+      "note": "Gas measured on Sepolia receipts (53,859 modal for a new recipient; 43,088 for an existing holder); Roles path bracket from fork tests, not yet measured for EURC.transfer. Mainnet base fee moved 0.12 -> 0.055 gwei within 15 min; treat as a timestamped snapshot. Sepolia itself prices gas at ~16 wei, so the live fee is ~EUR 0; the card shows the mainnet-equivalent."
+    },
+    "base": {
+      "gas_price_gwei": 0.0061,
+      "cost_eur_plain": 0.001,
+      "block_seconds": 2,
+      "l1_withdrawal_window_days": 5,
+      "source_url": "https://basescan.org/gastracker",
+      "fetched_on": "2026-10-19",
+      "note": "Base gasPrice 0.0061 gwei at 10:38Z (own node); Basescan ERC-20 transfer USD 0.001 on 7 Oct 2026 incl. L1 data fee. EURC is natively issued on Base. Withdrawal finalization 5 days single-proof / 1 day dual-proof (docs.base.org), not 7."
+    },
+    "offramp": {
+      "default_fee_pct": 0,
+      "default_fixed_eur": 0,
+      "kraken_sepa_eur": 1.0,
+      "kraken_sepa_instant_eur": 0.9,
+      "kraken_sepa_business_days": [0, 5],
+      "p2p_spread_pct": { "UA": [0.5, 1.5], "GE": [0.6, 0.6], "RS": [0.8, 3.5] },
+      "country_note": {
+        "UA": "Banks block crypto card operations; P2P (Binance/Bybit/WhiteBIT) spread ~0.5-1.5 %.",
+        "GE": "VASP regime since 1 Jul 2023; Binance P2P USDT/GEL spread ~0.6 % via TBC/BoG.",
+        "RS": "Licensed ECD.rs 0.95 % trade + 2.5 % RSD withdrawal (~3.5 % all-in) or P2P ~0.8 %.",
+        "IN": "FEMA: stablecoin is a VDA, not documented export proceeds on the prevailing reading; 30 % on gains + 1 % TDS. Route via a regulated INR off-ramp with eFIRA.",
+        "GB": "Kraken/Coinbase SEPA to a EUR account, or Monerium EURe IBAN."
+      },
+      "source_url": "https://support.kraken.com/articles/360000423043-cash-withdrawal-options-fees-minimums-and-processing-times-",
+      "fetched_on": "2026-10-19",
+      "note": "Borne by the payee; shown as a separate line so the saving is net. Circle Mint par redemption (no fee, ~2 business days) is for onboarded institutions only."
+    },
+    "travel_rule": {
+      "self_hosted_threshold_eur": 1000,
+      "source_url": "https://notabene.id/post/a-deep-dive-into-self-hosted-wallet-transaction-requirements-under-the-eu-tfr",
+      "fetched_on": "2026-10-19",
+      "note": "Regulation (EU) 2023/1113 since 30 Dec 2024: no de-minimis CASP-to-CASP; above EUR 1,000 to/from a self-hosted wallet the CASP verifies ownership (Art. 14(5), 16(2)). Duties sit with the payee's off-ramp CASP, not with the paying company."
+    }
+  },
+  "local_currency": {
+    "UA": "UAH", "GE": "GEL", "IN": "INR", "RS": "RSD", "GB": "GBP", "CZ": "CZK", "PL": "PLN", "HU": "HUF", "RO": "RON", "BG": "BGN", "DK": "DKK", "SE": "SEK", "NO": "NOK", "IS": "ISK", "CH": "CHF", "LI": "CHF", "US": "USD",
+    "AT": "EUR", "BE": "EUR", "HR": "EUR", "CY": "EUR", "EE": "EUR", "FI": "EUR", "FR": "EUR", "DE": "EUR", "GR": "EUR", "IE": "EUR", "IT": "EUR", "LV": "EUR", "LT": "EUR", "LU": "EUR", "MT": "EUR", "NL": "EUR", "PT": "EUR", "SK": "EUR", "SI": "EUR", "ES": "EUR", "AD": "EUR", "MC": "EUR", "SM": "EUR", "VA": "EUR"
+  },
+  "cnb": {
+    "daily_url": "https://api.cnb.cz/cnbapi/exrates/daily?date=YYYY-MM-DD&lang=EN",
+    "monthly_url": "https://api.cnb.cz/cnbapi/fxrates/daily-month?yearMonth=YYYY-MM&lang=EN",
+    "declared_local_time": "14:30",
+    "accounting_rule": "Act 563/1991 Sb. (wording from 1.1.2026) s.24c(1) and s.24d(1): foreign-currency items are converted at the CNB rate for the day of the accounting case; previous-day or fixed rate allowed (s.24d(3), s.24c(2)). VAT: Act 235/2004 Sb. s.4(8).",
+    "source_url": "https://www.cnb.cz/en/financial-markets/foreign-exchange-market/central-bank-exchange-rate-fixing/central-bank-exchange-rate-fixing/",
+    "fetched_on": "2026-10-19",
+    "note": "Rates declared every working day ~14:30 and valid for that day and any following Saturday, Sunday or public holiday. 'Other currencies' (UAH, GEL, RSD) are declared monthly on the last working day and apply to the following month."
+  }
+}

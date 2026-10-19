@@ -1,0 +1,21 @@
+{
+  "name": "thyme-payroll-flow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Thyme Flow task that pays approved payroll invoices in EURC from the company Safe",
+  "scripts": {
+    "dev": "thyme run pay-invoice",
+    "simulate": "thyme run pay-invoice --simulate",
+    "typecheck": "tsc --noEmit",
+    "upload": "thyme upload pay-invoice"
+  },
+  "dependencies": {
+    "@thyme-labs/sdk": "0.9.0",
+    "viem": "2.46.3"
+  },
+  "devDependencies": {
+    "@thyme-labs/cli": "0.11.0",
+    "typescript": "5.9.3"
+  }
+}
