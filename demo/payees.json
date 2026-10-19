@@ -45,7 +45,7 @@
       "type": "person",
       "country": "GE",
       "tax_id": "GE-SYNTH-00000000002",
-      "wallet": "0x625f81bE3A3eF53ba6f425B8fEbEaA6F172Ccc53",
+      "wallet": "0xE056C23Acb076Fd5D2cD3543B50165f94c4c4570",
       "email": "nino.beridze@example.com",
       "lei": null,
       "website": null,
@@ -58,19 +58,7 @@
         "fraud_reports": false,
         "summary": "Developer profiles and conference talk in Tbilisi match the stated country; nothing adverse."
       },
-      "ownership_proof": {
-        "wallet": "0x625f81bE3A3eF53ba6f425B8fEbEaA6F172Ccc53",
-        "chainId": 11155111,
-        "signature": "0x8e4e6533c012fe927428df174a4f7cd72e87c7c2d6566c61be3be6058f71f0357a4f60f9a859ce7a6ad0845e7148e64d93b127aca9cf5faacfdf2e399eb1d73a1b",
-        "signedAt": "2026-10-19T08:00:00Z",
-        "message": {
-          "beneficiaryId": "nino-beridze",
-          "wallet": "0x625f81bE3A3eF53ba6f425B8fEbEaA6F172Ccc53",
-          "nonce": "demo-nino-beridze",
-          "issuedAt": "2026-10-19T08:00:00Z",
-          "statement": "I control this wallet and accept EURC payouts from Thyme Payroll on Ethereum Sepolia."
-        }
-      }
+      "ownership_proof": null
     },
     {
       "id": "priya-sharma",

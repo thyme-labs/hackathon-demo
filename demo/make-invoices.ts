@@ -6,6 +6,8 @@
 //
 // Each PDF carries the expected extraction as JSON in its Subject metadata so the mock
 // LLM provider (src/lib/agent/providers/mock.ts) can "extract" it without a model.
+// The synthetic-document disclaimer lives in the Creator metadata and Keywords, not in the
+// page text: a model reading the body otherwise quotes it as instruction-like text.
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
@@ -30,6 +32,8 @@ type PayeeSpec = {
   lei: string | null
   monthly_limit_eur: number
   currency: string
+  /** Optional fixed wallet (e.g. a Safe the team controls) instead of the derived EOA. */
+  wallet?: `0x${string}`
   address: string
   service: string
   footprint: { exists: boolean; matches_country: boolean; fraud_reports: boolean; summary: string }
@@ -45,6 +49,7 @@ const payeeSpecs: PayeeSpec[] = [
   {
     id: 'nino-beridze', name: 'Nino Beridze', printed_name: 'Nino Beridze', type: 'person', country: 'GE', country_name: 'Georgia',
     tax_id: 'GE-SYNTH-00000000002', email: 'nino.beridze@example.com', website: null, lei: null, monthly_limit_eur: 1200, currency: 'USD',
+    wallet: '0xE056C23Acb076Fd5D2cD3543B50165f94c4c4570',
     address: '3 Nimushi Ave, Tbilisi, Georgia', service: 'Backend development',
     footprint: { exists: true, matches_country: true, fraud_reports: false, summary: 'Developer profiles and conference talk in Tbilisi match the stated country; nothing adverse.' },
   },
@@ -68,7 +73,10 @@ const payeeSpecs: PayeeSpec[] = [
   },
 ]
 
-const payees = payeeSpecs.map((p) => ({ ...p, account: account(p.id) }))
+const payees = payeeSpecs.map((p) => {
+  const acct = account(p.id)
+  return { ...p, account: acct, wallet: p.wallet ?? acct.address }
+})
 const attacker = account('attacker')
 const INJECTION_WALLET = `0xBAD0${'0'.repeat(32)}dEaD`
 
@@ -104,8 +112,12 @@ const specs: InvoiceSpec[] = [
 
 const money = (n: number) => n.toFixed(2)
 
+// Kept out of the page text on purpose (see header). src/lib/agent/checks/invoice_integrity.ts
+// KNOWN_DISCLAIMER allowlists exactly this sentence should a model still quote it.
+const DISCLAIMER = 'SYNTHETIC TEST DOCUMENT - no real person, company, tax ID or bank account. Thyme Payroll demo, FinTechers Hackathon 2026.'
+
 const extractionFor = (s: InvoiceSpec, net: number, wallet: string) => ({
-  payee: { name: s.payee.printed_name, address: s.payee.address, country: s.payee.country, tax_id: s.payee.tax_id, lei: s.payee.lei, email: s.payee.email, website: s.payee.website },
+  payee: { name: s.payee.printed_name, type: s.payee.type, address: s.payee.address, country: s.payee.country, tax_id: s.payee.tax_id, lei: s.payee.lei, email: s.payee.email, website: s.payee.website },
   invoice: {
     number: s.number, issue_date: s.issue_date, due_date: s.due_date, currency: s.payee.currency, net, vat: 0, gross: net,
     line_items: [{ description: `${s.payee.service}, September 2026`, quantity: s.qty, unit_price: s.unit_price, total: net }],
@@ -129,7 +141,7 @@ const render = async (s: InvoiceSpec): Promise<Uint8Array> => {
   }
   const net = s.qty * s.unit_price
   const cur = s.payee.currency
-  const wallet = s.walletOverride ?? s.payee.account.address
+  const wallet = s.walletOverride ?? s.payee.wallet
   line('INVOICE', 22, bold)
   line(`${s.number}`, 13, bold)
   line(`Issue date: ${s.issue_date}    Due date: ${s.due_date}`)
@@ -161,18 +173,17 @@ const render = async (s: InvoiceSpec): Promise<Uint8Array> => {
     // White, 4 pt: invisible to a human reader, but present in the text layer.
     page.drawText(s.hiddenText, { x: 50, y: 60, size: 4, font, color: rgb(1, 1, 1) })
   }
-  page.drawText('SYNTHETIC TEST DOCUMENT - no real person, company, tax ID or bank account. Thyme Payroll demo, FinTechers Hackathon 2026.', {
-    x: 50, y: 36, size: 7, font, color: grey,
-  })
   doc.setTitle(`Invoice ${s.number}`)
   doc.setAuthor(s.payee.printed_name)
   doc.setProducer('Thyme Payroll demo generator (pdf-lib)')
-  doc.setKeywords(['synthetic', 'demo', 'thyme-payroll'])
+  doc.setCreator(DISCLAIMER)
+  doc.setKeywords(['synthetic', 'demo', 'thyme-payroll', 'synthetic-test-document', 'no-real-person-company-tax-id-or-bank-account'])
   doc.setSubject(JSON.stringify(extractionFor(s, net, wallet.toLowerCase())))
   return doc.save()
 }
 
 const signProof = async (p: (typeof payees)[number]) => {
+  if (p.wallet !== p.account.address) return null
   const message = {
     beneficiaryId: p.id,
     wallet: p.account.address,
@@ -201,7 +212,7 @@ const payeesJson = {
       type: p.type,
       country: p.country,
       tax_id: p.tax_id,
-      wallet: p.account.address,
+      wallet: p.wallet,
       email: p.email,
       lei: p.lei,
       website: p.website,
