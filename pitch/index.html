@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Thyme Payroll — выплаты подрядчикам за границу: минута вместо дней</title>
-<meta name="description" content="Компания держит EURC в сейфе Safe; агент платит зарегистрированным подрядчикам в пределах лимита, установленного одной подписью. Всё остальное отклоняет блокчейн.">
+<meta name="description" content="Компания держит EURC в собственном сейфе Safe; агент проводит 20 проверок по каждому счёту и передаёт одобренную выплату Thyme, которому правило в блокчейне разрешает только одно действие — перевод EURC из этого Safe.">
 <style>
 :root{--bg:#fafaf9;--ink:#111;--muted:#6b6b70;--accent:#5b8f78;--accent:oklch(0.55 0.08 165);--accent-soft:#e7efea;--line:#e5e5e2;--card:#fff;--red:#b42318;--red-soft:#fdecea;--grey-soft:#ededec}
 *{box-sizing:border-box}
@@ -66,6 +66,9 @@ dl{display:grid;grid-template-columns:150px 1fr;gap:10px 20px;margin:0}
 dt{font-weight:600}
 dd{margin:0;color:#3a3a3e}
 .sources{font-size:14px;color:#4a4a4f}
+tr.tier th{padding-top:22px;color:var(--ink);font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+.btn{display:inline-block;padding:10px 18px;border-radius:10px;background:var(--accent);color:#fff;font-weight:600;text-decoration:none}
+.btn:hover{opacity:.9}
 footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size:14px;color:var(--muted)}
 @media (max-width:720px){.grid3,.grid2,.stats,.shots{grid-template-columns:1fr}h1{font-size:36px}.lead{font-size:20px}table{font-size:13px}th,td{padding:8px}dl{grid-template-columns:1fr}}
 @media print{nav{display:none}body{background:#fff;font-size:12pt}main{max-width:none;padding:0}section{padding-top:28pt}h2{break-after:avoid}.card,figure,table,tr,.note,.stats,.shots,.quote,.sources,dl{break-inside:avoid;page-break-inside:avoid}a{color:inherit;text-decoration:none}.frame,.card,.note{box-shadow:none}}
@@ -87,10 +90,11 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size
 <a href="#eurc">EURC</a>
 <a href="#solution">Решение</a>
 <a href="#howitworks">Как работает</a>
+<a href="#jury">Для жюри</a>
 <a href="#safety">Подделка</a>
 <a href="#compliance">Проверки</a>
 <a href="#comparison">Сравнение</a>
-<a href="#resources">Что нужно</a>
+<a href="#resources">Статус</a>
 <a href="#business">Кому</a>
 <a href="#glossary">Словарь</a>
 <a href="#sources">Источники</a>
@@ -101,11 +105,11 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size
 <div class="kicker">The FinTechers Hackathon 2026 · Прага, 19–20 октября · Трек 2: выплаты в евро-стейблкоине</div>
 <h1>Thyme Payroll</h1>
 <p class="lead">Выплаты подрядчикам за границу: минута вместо дней</p>
-<p class="sub">Компания держит евро-стейблкоин EURC в собственном сейфе Safe. Агент оплачивает счета зарегистрированных подрядчиков в пределах лимита, который владелец подписал один раз; всё, что выходит за рамки правила, блокчейн отклоняет сам, даже если агента обманули.</p>
+<p class="sub">Компания держит евро-стейблкоин EURC в собственном сейфе Safe. Агент читает счета, проводит 20 проверок и передаёт одобренные выплаты Thyme; владелец одной подписью разрешил Thyme ровно одно действие — перевод EURC из этого Safe, и ничего больше. Новый получатель и каждый спорный счёт ждут владельца.</p>
 <div class="stats">
 <div class="card stat"><b>€23–94 → €0,02–0,18</b><span>стоимость перевода €1&nbsp;000: SWIFT против EURC в сети Ethereum</span></div>
-<div class="card stat"><b>&lt; 1 мин</b><span>от загрузки счёта до выплаты зарегистрированному подрядчику</span></div>
-<div class="card stat"><b>48 из 48</b><span>сценариев на копии тестовой сети прошли как задумано: разрешённые платежи прошли, все попытки выйти за рамки мандата отклонены</span></div>
+<div class="card stat"><b>20 проверок</b><span>перед каждой выплатой: 3 критические, 7 высокой, 9 средней и 1 низкой важности; у каждой помечено, кто её держит — агент или блокчейн</span></div>
+<div class="card stat"><b>27 сценариев</b><span>демо-счетов с заданным исходом: 8 оплачиваются, 7 ждут владельца, 12 останавливаются — подмена кошелька, скрытые инструкции, дубликаты, санкции, дробление</span></div>
 </div>
 </header>
 
@@ -133,9 +137,9 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size
 <section id="solution">
 <h2>Как мы это решаем</h2>
 <div class="grid3">
-<div class="card"><h4>1. Сейф компании (Safe)</h4><p>Деньги лежат в кошельке компании с несколькими владельцами; ни агент, ни Thyme владельцами не являются.</p></div>
-<div class="card"><h4>2. Мандат</h4><p>Одной подписью владелец устанавливает в блокчейне правило (модуль Zodiac Roles): платить только этим получателям, только в EURC, не больше месячного лимита на каждого. Правило отзывается в любой момент.</p></div>
-<div class="card"><h4>3. Агент</h4><p>Читает счета, извлекает получателя, кошелёк и сумму, проводит проверки и платит собственным ключом доступа, которому разрешено только то, что записано в мандате.</p></div>
+<div class="card"><h4>1. Сейф компании (Safe)</h4><p>Деньги лежат в Safe компании; ни агент, ни Thyme владельцами не являются, а приложение не хранит ни одного ключа.</p></div>
+<div class="card"><h4>2. Мандат</h4><p>Одной подписью владелец ставит на Safe модуль Zodiac Roles с одним правилом: Thyme может вызвать только перевод EURC из этого Safe — ни approve, ни другой токен, ни смену владельцев или модулей, ни пакетные вызовы. Отключается из Safe{Wallet} в любой момент. Лимиты и список получателей сегодня держит агент; перенос их в правило — следующий релиз Thyme.</p></div>
+<div class="card"><h4>3. Агент</h4><p>Читает счёт, извлекает получателя, кошелёк и сумму, проводит 20 проверок, объясняет решение и передаёт одобренную выплату Thyme по вебхуку. Платит всегда на кошелёк из реестра, а не на тот, что напечатан в счёте.</p></div>
 </div>
 <figure>
 <div class="frame">
@@ -148,94 +152,105 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size
 <text x="378" y="113" font-size="13" fill="#6b6b70">одна подпись владельца</text>
 <rect x="200" y="128" width="320" height="74" rx="12" fill="#fff" stroke="#5b8f78"/>
 <text x="360" y="160" text-anchor="middle" font-size="19" font-weight="600" fill="#111">Мандат</text>
-<text x="360" y="184" text-anchor="middle" font-size="13" fill="#6b6b70">кому, в чём и сколько платить</text>
+<text x="360" y="184" text-anchor="middle" font-size="13" fill="#6b6b70">Thyme может только перевести EURC из Safe</text>
 <line x1="360" y1="204" x2="360" y2="236" stroke="#6b6b70" stroke-width="1.5" marker-end="url(#arr)"/>
-<text x="378" y="225" font-size="13" fill="#6b6b70">ключ только для разрешённого</text>
+<text x="378" y="225" font-size="13" fill="#6b6b70">одобренная выплата по вебхуку</text>
 <rect x="200" y="240" width="320" height="74" rx="12" fill="#fff" stroke="#c9c9c5"/>
 <text x="360" y="272" text-anchor="middle" font-size="19" font-weight="600" fill="#111">Агент</text>
-<text x="360" y="296" text-anchor="middle" font-size="13" fill="#6b6b70">читает счёт, проверяет, платит</text>
+<text x="360" y="296" text-anchor="middle" font-size="13" fill="#6b6b70">читает счёт, 20 проверок, передаёт Thyme</text>
 <text x="16" y="53" font-size="13" fill="#6b6b70">держит деньги</text>
 <text x="16" y="165" font-size="13" fill="#6b6b70">держит правило</text>
-<text x="16" y="277" font-size="13" fill="#6b6b70">держит только ключ</text>
+<text x="16" y="277" font-size="13" fill="#6b6b70">не держит ключей</text>
 </g>
 </svg>
 </div>
-<figcaption>Три слоя. Мандат стоит между деньгами и агентом: без него у агента нет прав, без агента мандат всё равно действует.</figcaption>
+<figcaption>Три слоя. Правило стоит между деньгами и агентом: Thyme исполняет только то, что подписал владелец; без агента правило всё равно действует.</figcaption>
 </figure>
-<p class="quote">Правило держит блокчейн, а не инструкция для ИИ. Уберите ИИ — мандат останется. Уберите нас — деньги останутся у вас.</p>
+<p class="quote">Правило держит блокчейн, а не инструкция для ИИ. Уберите ИИ — правило останется. Уберите нас — деньги останутся у вас.</p>
 </section>
 
 <section id="howitworks">
 <h2>Как это работает</h2>
 <div class="grid2">
 <div>
-<h3>Первый счёт от подрядчика (пять шагов)</h3>
+<h3>Подключение — один раз, пять шагов</h3>
 <ol>
-<li>Владелец загружает счёт в PDF.</li>
-<li>Агент извлекает данные и проводит проверки: санкции, владение кошельком, страновой риск, дубликаты, эмитент EURC.</li>
-<li>Агент предлагает карточку нового получателя с месячным лимитом (например, €1&nbsp;500).</li>
-<li>Владелец правит лимит и подписывает одну операцию в Safe — она же устанавливает правило.</li>
-<li>Платёж уходит и через ~15 секунд подтверждён в блокчейне.</li>
+<li><b>Вход кошельком.</b> Подпись сообщения (Sign-In with Ethereum) в MetaMask или через WalletConnect; у каждого пользователя своё пространство.</li>
+<li><b>Свой Safe.</b> Приложение показывает Safe, где вы владелец, или вы вставляете адрес. В Safe{Wallet} приложение открывается как Safe App, и адрес подставляется сам.</li>
+<li><b>Одна подпись.</b> Thyme по API готовит транзакцию; перед подписью видно, что Thyme сможет и чего не сможет. Владелец подписывает её в MetaMask — на Safe появляется модуль Roles с правом только на перевод EURC.</li>
+<li><b>Thyme подтверждает транзакцию</b>, создаёт задачу pay-invoice и вебхук. Консоль Thyme открывать не нужно.</li>
+<li><b>Готово.</b> Газ за выплаты платит Thyme; ETH на Safe не нужен.</li>
 </ol>
 </div>
 <div>
-<h3>Следующие счета от того же подрядчика (три шага, меньше минуты)</h3>
+<h3>Каждый счёт — четыре шага</h3>
 <ol>
-<li>Загрузка счёта.</li>
-<li>Те же проверки заново плюс сверка с остатком лимита.</li>
-<li>Выплата без подписи владельца; таймер считает секунды до подтверждения.</li>
+<li><b>Загрузка:</b> PDF, PNG, JPEG или TXT (до 10&nbsp;МБ).</li>
+<li><b>Проверки.</b> Агент (Claude на Amazon Bedrock) извлекает получателя, кошелёк и сумму, проводит 20 проверок, считает балл 0–100 и объясняет решение.</li>
+<li><b>Решение.</b> Новый получатель или предупреждение — владелец одобряет и задаёт месячный лимит. Известный получатель с чистым счётом выше порога — автоматически, без подписи.</li>
+<li><b>Выплата через Thyme.</b> Вебхук → Thyme отправляет EURC из Safe; ~12&nbsp;с до блока. Авизо, таблица и журнал готовы.</li>
 </ol>
 </div>
 </div>
 <figure>
 <div class="frame">
-<svg viewBox="0 0 900 270" role="img" aria-label="Первый счёт: пять шагов; следующие счета: три шага, меньше минуты">
+<svg viewBox="0 0 900 270" role="img" aria-label="Подключение: пять шагов один раз; каждый счёт известного подрядчика: без подписи владельца">
 <g font-family="Inter,-apple-system,Segoe UI,Roboto,sans-serif">
-<text x="24" y="28" font-size="14" font-weight="600" fill="#111">Первый счёт от подрядчика — пять шагов</text>
+<text x="24" y="28" font-size="14" font-weight="600" fill="#111">Подключение — один раз, пять шагов</text>
 <line x1="90" y1="72" x2="810" y2="72" stroke="#c9c9c5" stroke-width="1.5"/>
 <g fill="#5b8f78"><circle cx="90" cy="72" r="15"/><circle cx="270" cy="72" r="15"/><circle cx="450" cy="72" r="15"/><circle cx="630" cy="72" r="15"/><circle cx="810" cy="72" r="15"/></g>
 <g fill="#fff" font-size="13" font-weight="600" text-anchor="middle"><text x="90" y="77">1</text><text x="270" y="77">2</text><text x="450" y="77">3</text><text x="630" y="77">4</text><text x="810" y="77">5</text></g>
-<g fill="#111" font-size="13" text-anchor="middle"><text x="90" y="104">Счёт в PDF</text><text x="270" y="104">Проверки</text><text x="450" y="104">Карточка получателя</text><text x="630" y="104">Одна подпись в Safe</text><text x="810" y="104">Платёж подтверждён</text></g>
-<g fill="#6b6b70" font-size="12" text-anchor="middle"><text x="90" y="122">владелец</text><text x="270" y="122">агент</text><text x="450" y="122">агент, лимит €1 500</text><text x="630" y="122">владелец</text><text x="810" y="122">~15 с</text></g>
-<text x="24" y="170" font-size="14" font-weight="600" fill="#111">Следующие счета от того же подрядчика — три шага</text>
-<rect x="420" y="155" width="76" height="24" rx="12" fill="#e7efea"/>
-<text x="458" y="172" text-anchor="middle" font-size="13" font-weight="600" fill="#5b8f78">&lt; 1 мин</text>
+<g fill="#111" font-size="13" text-anchor="middle"><text x="90" y="104">Вход кошельком</text><text x="270" y="104">Свой Safe</text><text x="450" y="104">Одна подпись</text><text x="630" y="104">Задача и вебхук</text><text x="810" y="104">Готово</text></g>
+<g fill="#6b6b70" font-size="12" text-anchor="middle"><text x="90" y="122">владелец</text><text x="270" y="122">владелец</text><text x="450" y="122">владелец, MetaMask</text><text x="630" y="122">Thyme по API</text><text x="810" y="122">газ платит Thyme</text></g>
+<text x="24" y="170" font-size="14" font-weight="600" fill="#111">Каждый счёт</text>
+<rect x="404" y="155" width="104" height="24" rx="12" fill="#e7efea"/>
+<text x="456" y="172" text-anchor="middle" font-size="13" font-weight="600" fill="#5b8f78">без подписи</text>
 <line x1="90" y1="214" x2="810" y2="214" stroke="#c9c9c5" stroke-width="1.5"/>
 <g fill="#5b8f78"><circle cx="90" cy="214" r="15"/><circle cx="450" cy="214" r="15"/><circle cx="810" cy="214" r="15"/></g>
 <g fill="#fff" font-size="13" font-weight="600" text-anchor="middle"><text x="90" y="219">1</text><text x="450" y="219">2</text><text x="810" y="219">3</text></g>
-<g fill="#111" font-size="13" text-anchor="middle"><text x="90" y="246">Загрузка счёта</text><text x="450" y="246">Проверки и остаток лимита</text><text x="810" y="246">Выплата без подписи</text></g>
-<g fill="#6b6b70" font-size="12" text-anchor="middle"><text x="90" y="264">владелец</text><text x="450" y="264">агент</text><text x="810" y="264">таймер до подтверждения</text></g>
+<g fill="#111" font-size="13" text-anchor="middle"><text x="90" y="246">Загрузка счёта</text><text x="450" y="246">20 проверок и балл</text><text x="810" y="246">Выплата через Thyme</text></g>
+<g fill="#6b6b70" font-size="12" text-anchor="middle"><text x="90" y="264">PDF, PNG, JPEG, TXT</text><text x="450" y="264">агент; спорное — владельцу</text><text x="810" y="264">~12 с до блока</text></g>
 </g>
 </svg>
 </div>
-<figcaption>Первый счёт требует одной подписи владельца; все следующие от того же подрядчика проходят без неё, меньше чем за минуту.</figcaption>
+<figcaption>Подключение Safe требует одной подписи владельца; дальше каждый счёт известного подрядчика проходит без неё, а новый получатель и любое предупреждение ждут владельца.</figcaption>
 </figure>
 <table class="cols3">
 <thead><tr><th>Что делает человек</th><th>Что делает агент</th><th>Что гарантирует блокчейн</th></tr></thead>
 <tbody><tr>
-<td>Одной подписью регистрирует получателя и лимит; одобряет предупреждения; может отключить агента</td>
-<td>Читает счёт, сверяет кошелёк, проверяет списки, объясняет решение, платит, готовит документы</td>
-<td>Получатель только из списка, валюта только EURC, сумма не выше лимита; остальное отклоняется</td>
+<td>Входит кошельком и подключает Safe одной подписью; регистрирует получателя и месячный лимит; одобряет предупреждения; может выключить автооплату, поставить агентов на паузу или отключить модуль в Safe{Wallet}</td>
+<td>Читает счёт, проводит 20 проверок, считает балл, объясняет решение, передаёт выплату Thyme, готовит авизо, таблицу и журнал</td>
+<td>Из Safe можно только перевести EURC — ни approve, ни другой токен, ни смена владельцев и модулей, ни пакетные вызовы; остальное отклоняется. Лимиты на получателя в правиле — следующий релиз</td>
 </tr></tbody>
 </table>
 <div class="shots">
-<figure><img src="assets/app-dashboard.png" alt="Экран сейфа: баланс, агенты с месячными лимитами, журнал операций" loading="lazy"><figcaption>Сейф, агенты и журнал — макет интерфейса</figcaption></figure>
-<figure><img src="assets/app-chat.png" alt="Экран создания мандата: фраза владельца превращается в правило и подписывается в Safe" loading="lazy"><figcaption>Мандат из одной фразы и подпись — макет интерфейса</figcaption></figure>
-<figure><img src="assets/app-agent.png" alt="Экран агента: лимит месяца, получатели, выплаты и отклонённая попытка" loading="lazy"><figcaption>Агент «Подрядчики» и его выплаты — макет интерфейса</figcaption></figure>
+<figure><img src="assets/app-dashboard.png" alt="Ранний макет: экран сейфа, агенты с месячными лимитами, журнал операций" loading="lazy"><figcaption>Ранний макет (19.10): сейф, агенты и журнал. Живой интерфейс — в разделе «Для жюри»</figcaption></figure>
+<figure><img src="assets/app-chat.png" alt="Ранний макет: создание мандата и подпись в Safe" loading="lazy"><figcaption>Ранний макет (19.10): мандат и подпись</figcaption></figure>
+<figure><img src="assets/app-agent.png" alt="Ранний макет: экран агента, получатели, выплаты и отклонённая попытка" loading="lazy"><figcaption>Ранний макет (19.10): агент и его выплаты</figcaption></figure>
+</div>
+</section>
+
+<section id="jury">
+<h2>Для жюри</h2>
+<div class="note">
+<p><a class="btn" href="https://web-production-e14ca.up.railway.app">Открыть демо → web-production-e14ca.up.railway.app</a></p>
+<p>Тестовая сеть Ethereum Sepolia, реальных денег нет. На странице входа нажмите <b>«Jury demo»</b>: откроется демо-пространство с пятью подрядчиками, тремя прошлыми выплатами (помечены как симуляция), счётом INV-0388 в ожидании одобрения и остановленным поддельным INV-0432, и начнётся пошаговая экскурсия по всем экранам (кнопка-искра в боковой панели запускает её заново). Всё, что вы делаете дальше — загрузка, одобрение, «Send anyway», — проходит через настоящий конвейер проверок; демо-пространство платит через помеченную симуляцию.</p>
+<p>Со своим кошельком: вход через MetaMask или WalletConnect, подключение собственного Safe на Sepolia одной подписью и настоящие выплаты через Thyme. В Safe{Wallet} приложение добавляется как пользовательское Safe App по тому же адресу.</p>
+<p class="small"><b>Настоящие операции в Sepolia:</b> подключение Safe одной подписью — <a href="https://sepolia.etherscan.io/tx/0xd469208c609125c1a941a427dda7782d2a575f69ab4ff6336ee754eb51fa36d6">0xd469…36d6</a> (модуль Roles 0x7a9F…eb35); выплата по счёту в индийских рупиях — 2,34 EURC, <a href="https://sepolia.etherscan.io/tx/0x2bf6dc1c7a4a30deb265d35cc81c55f49172c749b04b5ef0d4195ab4118557b3">0x2bf6…57b3</a>; выплата 2,50 EURC — <a href="https://sepolia.etherscan.io/tx/0xa23fe7a8da5984bfcf51fa0bc3014c96368cbd152e3f722985d32bf96b11fac0">0xa23f…fac0</a>. Обе выплаты ушли из Safe компании 0x490d…6592, газ оплачен Thyme.</p>
 </div>
 </section>
 
 <section id="safety">
 <h2>Что будет, если счёт подделан</h2>
 <ol class="story">
-<li><span>1</span><div>Приходит счёт INV-0432: имя Анны, та же сумма, но другой кошелёк.</div></li>
-<li><span>2</span><div>Агент видит, что кошелёк не совпадает с зарегистрированным, и останавливается.</div></li>
-<li><span>3</span><div>Нажимаем «всё равно оплатить» — так поступил бы обманутый агент.</div></li>
-<li class="bad"><span>4</span><div><b>Блокчейн отклоняет операцию: денег нет, в журнале причина.</b></div></li>
+<li><span>1</span><div>Приходит счёт INV-0432: имя Анны, та же сумма, но другой кошелёк и фраза «реквизиты обновлены».</div></li>
+<li class="bad"><span>2</span><div><b>Агент останавливает счёт: балл 10 из 100.</b> Проверка «Кошелёк совпадает с реестром» провалена — она критическая, и её провал опускает потолок балла до 10, сколько бы остальных проверок ни прошло; «Целостность счёта» тоже провалена. Деньги не двигались.</div></li>
+<li><span>3</span><div>Нажимаем «Send anyway» — так поступил бы обманутый человек. Приложение требует отметить каждую проваленную проверку по отдельности и написать причину; всё уходит в журнал решений, счёт и выплата помечаются как переопределённые.</div></li>
+<li><span>4</span><div><b>Даже тогда деньги идут только на кошелёк Анны из реестра.</b> Адрес, напечатанный в поддельном счёте, не получает ничего: агент никогда не платит на адрес из документа.</div></li>
 </ol>
 <figure>
 <div class="frame">
-<svg viewBox="0 0 910 196" role="img" aria-label="Подменённый счёт: агент останавливает, блокчейн отклоняет, сейф не тронут">
+<svg viewBox="0 0 910 196" role="img" aria-label="Подменённый счёт: агент останавливает с баллом 10 из 100, переопределение только вручную с причиной в журнале, выплата только на адрес из реестра">
 <g font-family="Inter,-apple-system,Segoe UI,Roboto,sans-serif" stroke-linecap="round" stroke-linejoin="round">
 <rect x="20" y="40" width="180" height="90" rx="12" fill="#fff" stroke="#c9c9c5"/>
 <path d="M44 62h14l8 8v22H44z M58 62v8h8" fill="none" stroke="#6b6b70" stroke-width="1.6"/>
@@ -246,50 +261,67 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size
 <rect x="250" y="40" width="180" height="90" rx="12" fill="#fff" stroke="#c9c9c5"/>
 <path d="M272 62v30 M272 63h22l-5 6 5 6h-22" fill="none" stroke="#b42318" stroke-width="1.8"/>
 <text x="304" y="72" font-size="14" font-weight="600" fill="#111">Агент</text>
-<text x="304" y="92" font-size="12" fill="#6b6b70">кошелёк не из реестра,</text>
-<text x="304" y="108" font-size="12" fill="#6b6b70">останавливается</text>
+<text x="304" y="92" font-size="12" fill="#6b6b70">балл 10 из 100,</text>
+<text x="304" y="108" font-size="12" fill="#6b6b70">остановлен</text>
 <line x1="434" y1="85" x2="476" y2="85" stroke="#b42318" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-red)"/>
-<text x="455" y="150" text-anchor="middle" font-size="11" fill="#b42318">«всё равно оплатить»</text>
+<text x="455" y="150" text-anchor="middle" font-size="11" fill="#b42318">«Send anyway»: причина в журнал</text>
 <rect x="480" y="40" width="180" height="90" rx="12" fill="#fdecea" stroke="#b42318"/>
 <circle cx="508" cy="85" r="12" fill="none" stroke="#b42318" stroke-width="1.8"/>
 <path d="M502 79l12 12 M514 79l-12 12" stroke="#b42318" stroke-width="1.8"/>
-<text x="532" y="72" font-size="14" font-weight="600" fill="#b42318">Блокчейн</text>
-<text x="532" y="92" font-size="13" font-weight="600" fill="#b42318">отклонено</text>
-<text x="532" y="108" font-size="12" fill="#6b6b70">причина в журнале</text>
+<text x="532" y="72" font-size="14" font-weight="600" fill="#b42318">Адрес из счёта</text>
+<text x="532" y="92" font-size="13" font-weight="600" fill="#b42318">не получает ничего</text>
+<text x="532" y="108" font-size="12" fill="#6b6b70">платим только по реестру</text>
 <line x1="664" y1="85" x2="706" y2="85" stroke="#6b6b70" stroke-width="1.5" marker-end="url(#arr)"/>
 <rect x="710" y="40" width="180" height="90" rx="12" fill="#e7efea" stroke="#5b8f78"/>
 <path d="M732 84h18v14h-18z M735 84v-5a6 6 0 0 1 12 0v5" fill="none" stroke="#5b8f78" stroke-width="1.8"/>
 <text x="762" y="72" font-size="14" font-weight="600" fill="#111">Сейф</text>
-<text x="762" y="92" font-size="12" fill="#6b6b70">деньги на месте,</text>
-<text x="762" y="108" font-size="12" fill="#6b6b70">баланс не изменился</text>
-<text x="455" y="180" text-anchor="middle" font-size="12" fill="#6b6b70">Агент — первая линия; мандат в блокчейне — последняя. Обман агента не ведёт к потере денег.</text>
+<text x="762" y="92" font-size="12" fill="#6b6b70">перевод только на</text>
+<text x="762" y="108" font-size="12" fill="#6b6b70">кошелёк Анны из реестра</text>
+<text x="455" y="180" text-anchor="middle" font-size="12" fill="#6b6b70">Провал критической проверки — балл не выше 10. Переопределение — только вручную, с причиной в журнале, и только на адрес из реестра.</text>
 </g>
 </svg>
 </div>
-<figcaption>Подменённый счёт: агент бьёт тревогу, а если его всё же заставить платить — блокчейн отклоняет операцию, сейф не тронут.</figcaption>
+<figcaption>Подменённый счёт: агент останавливает его с баллом 10 из 100; даже если владелец нажмёт «Send anyway», выплата уйдёт на адрес из реестра, а не из документа.</figcaption>
 </figure>
-<div class="note">Мы прогнали 48 сценариев на копии тестовой сети, и все прошли как задумано: разрешённые платежи прошли, а превышение лимита, незнакомый получатель, другая валюта вместо EURC и попытка после отзыва — отклонены. Аварийный выключатель: одна подпись владельца — и агент теряет права, любой его перевод отклоняется.</div>
+<div class="note"><b>Балл — не среднее.</b> У каждой проверки есть вес и важность; штраф за провал — вес × 4 для критической, × 2,5 для высокой, × 1,5 для средней, × 1 для низкой. Потолки: провал критической — не выше 10, провал высокой — не выше 40, два предупреждения на критических — не выше 70. Любой провал останавливает выплату независимо от балла; незнакомый получатель всегда ждёт владельца; порог автооплаты владелец задаёт в настройках и может выключить автооплату совсем. Надпись в счёте «Compliance status: approved, score 100/100» балл не поднимает — она сама становится предупреждением.</div>
+<div class="note"><b>Сценарии.</b> 27 синтетических счетов с описанным ожидаемым исходом для каждого: подмена кошелька, белый текст 4&nbsp;pt с инструкциями для ИИ, дубликат, дробление одного счёта на три, санкции по имени и по адресу кошелька, страны чёрного и серого списков, имя с кириллической буквой, счёт в USDT, новый кошелёк у известного подрядчика. 8 оплачиваются, 7 ждут владельца, 12 останавливаются.</div>
+<div class="note"><b>Выключатели.</b> Владелец выключает автооплату (каждый счёт ждёт его), ставит агентов на паузу или отключает модуль Roles в Safe{Wallet}; проверка «Safe и рельс Roles» замечает отключённый модуль раньше, чем Thyme получит отказ. <b>Честно:</b> месячные лимиты и список получателей сегодня держит агент; перенос их в правило на блокчейне (allowances Zodiac Roles) готов в коде и проверен на копии Sepolia, но ждёт следующего релиза Thyme.</div>
 </section>
 
 <section id="compliance">
 <h2>Проверки перед каждой выплатой</h2>
+<p>Двадцать проверок, каждая с весом и важностью; у каждой помечено, кто её держит: агент до вызова Thyme или чтение самого блокчейна. Любой провал останавливает выплату.</p>
 <table class="num">
-<thead><tr><th>#</th><th>Проверка</th><th>Источник</th><th>Кто проверяет</th></tr></thead>
+<thead><tr><th>#</th><th>Проверка</th><th>Что смотрит</th><th>Кто проверяет</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>Кошелёк в счёте совпадает с зарегистрированным</td><td>реестр получателей</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span> <span class="small muted">(блокчейн страхует)</span></td></tr>
-<tr><td>2</td><td>Получатель не под санкциями</td><td>сводный список ЕС, OFAC SDN, национальный список ЧР</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
-<tr><td>3</td><td>Кошелёк не под санкциями</td><td>адреса кошельков из списка OFAC SDN</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
-<tr><td>4</td><td>Лицензии и предупреждения регуляторов (компании)</td><td>набор данных Mostly Right</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
-<tr><td>5</td><td>Страновой риск</td><td>список ЕС высокорисковых стран (26), серый список FATF (22, июнь 2026)</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
-<tr><td>6</td><td>Дубликат счёта, аномальная сумма, скрытые инструкции в PDF</td><td>наша база</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
-<tr><td>7</td><td>Сумма в пределах лимита получателя</td><td>счётчик лимита в блокчейне (Zodiac Roles)</td><td><span class="chip chip-chain"><svg><use href="#i-lock"/></svg>блокчейн</span></td></tr>
-<tr><td>8</td><td>Валюта — только EURC, получатель — только из списка</td><td>правило в блокчейне (Zodiac Roles)</td><td><span class="chip chip-chain"><svg><use href="#i-lock"/></svg>блокчейн</span></td></tr>
-<tr><td>9</td><td>Эмитент лицензирован по MiCA</td><td>реестр ESMA: Circle Internet Financial Europe, код LEI 969500OYUDADGZKCR583</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
-<tr><td>10</td><td>Подрядчик владеет кошельком</td><td>подпись подрядчика при регистрации</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr class="tier"><th colspan="4">Критические — провал опускает балл до 10</th></tr>
+<tr><td>1</td><td>Кошелёк в счёте совпадает с реестром</td><td>кошелёк из документа против кошелька на файле; платёж в любом случае идёт на адрес из реестра</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>2</td><td>Получатель не под санкциями</td><td>сводный список ЕС, OFAC SDN, национальный список ЧР; точное, по словам и нечёткое совпадение</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>3</td><td>Кошелёк не под санкциями</td><td>адреса ETH из OFAC SDN и пометки об адресах в списке ЕС</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr class="tier"><th colspan="4">Высокой важности — провал опускает балл до 40</th></tr>
+<tr><td>4</td><td>Известный получатель</td><td>реестр: статус, выплачено к дате, доверие</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>5</td><td>Реквизиты получателя стабильны</td><td>журнал: смена кошелька, резкое повышение лимита, крупная первая выплата в первые 24 ч</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>6</td><td>Целостность счёта</td><td>дубликат номера, аномальная сумма, даты, арифметика, инструкции в тексте</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>7</td><td>Криминалистика PDF</td><td>белый или мелкий текст, невидимый режим, JavaScript, второй кошелёк в тексте — без модели</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>8</td><td>Страновой риск</td><td>режимы ЕС, чёрный и серый списки FATF, список ЕС высокорисковых стран</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>9</td><td>В пределах месячного лимита</td><td>выплаты за 30 дней против лимита получателя; allowance Roles, когда читается</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>10</td><td>Схема платежей</td><td>3+ выплаты за 24 ч; дробление: 3+ счёта до €1 000 за 7 дней, вместе больше €1 000</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr class="tier"><th colspan="4">Средней важности — сбой источника не задерживает счёт</th></tr>
+<tr><td>11</td><td>Курс валюты</td><td>Tatum, ECB (Frankfurter), статическая таблица; фиксинг ČNB для бухгалтерии</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>12</td><td>Эмитент EURC по MiCA</td><td>реестр ESMA; аттестация резервов против выпуска в обращении</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>13</td><td>Лицензии и предупреждения регуляторов (компании)</td><td>набор данных Mostly Right по LEI, домену и имени</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>14</td><td>Подрядчик владеет кошельком</td><td>подпись EIP-712 при регистрации, в том числе для смарт-кошельков</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>15</td><td>PEP-скрининг (лица)</td><td>Wikidata: должности и их даты; таблица олигархов OpenSanctions</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>16</td><td>Готовность к Travel Rule</td><td>записи отправителя и получателя против порога €1 000 (регламент 2023/1113)</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>17</td><td>Чёрный список эмитента</td><td>контракт EURC: заблокирован ли адрес, остановлен ли токен, роли администраторов</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
+<tr><td>18</td><td>Safe и рельс Roles</td><td>модуль включён и смотрит на Safe; баланс EURC покрывает открытые выплаты</td><td><span class="chip chip-chain"><svg><use href="#i-lock"/></svg>блокчейн</span></td></tr>
+<tr><td>19</td><td>Пробный прогон перевода</td><td>тот же перевод EURC из Safe и вызов через Roles, только для чтения, за секунды до отправки</td><td><span class="chip chip-chain"><svg><use href="#i-lock"/></svg>блокчейн</span></td></tr>
+<tr class="tier"><th colspan="4">Низкой важности</th></tr>
+<tr><td>20</td><td>Публичный след</td><td>веб-поиск и резюме модели: сигнал, не вердикт</td><td><span class="chip chip-agent"><svg><use href="#i-spark"/></svg>агент</span></td></tr>
 </tbody>
 </table>
-<p><b>Документы для бухгалтера:</b> авизо о платеже (номер счёта, сумма в EURC, номер операции, курс ČNB на день выплаты и сумма в кронах по §24c–§24d закона о бухучёте), месячная таблица CSV, журнал решений агента, защищённый от правок задним числом.</p>
-<p><b>Регуляторная позиция в одну строку:</b> Thyme — программное обеспечение, которое не хранит ни деньги, ни ключи клиентов, и не поставщик криптоуслуг (CASP) по MiCA; ключ агента хранится у клиента; плательщик — не обязанное лицо по закону об отмывании, но санкции обязательны для всех; НДС — обратное начисление (§108(3)(a)); налог у источника за работу, выполненную за рубежом, обычно не возникает (§22(1)(c)). <span class="muted">Это не юридическая консультация.</span></p>
+<p><b>Документы для бухгалтера:</b> авизо о платеже (номер счёта, сумма в EURC и в евро, номер операции, курс ČNB на день выплаты и сумма в кронах по §24c–§24d закона о бухучёте), месячная таблица CSV, журнал решений агента с цепочкой хешей, защищённый от правок задним числом.</p>
+<p><b>Регуляторная позиция в одну строку:</b> Thyme — программное обеспечение, которое не хранит ни деньги, ни ключи клиентов, и не поставщик криптоуслуг (CASP) по MiCA; плательщик — не обязанное лицо по закону об отмывании, но санкции обязательны для всех; НДС — обратное начисление (§108(3)(a)); налог у источника за работу, выполненную за рубежом, обычно не возникает (§22(1)(c)). <span class="muted">Это не юридическая консультация.</span></p>
 </section>
 
 <section id="comparison">
@@ -337,27 +369,14 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size
 </section>
 
 <section id="resources">
-<h2>Что нужно</h2>
+<h2>Что работает и что дальше</h2>
 <div class="grid2">
-<div class="card"><h4>Команда, 2–4 человека</h4><p>Блокчейн и серверная часть; интерфейс; ИИ-агент; презентация и проверки.</p></div>
-<div class="card"><h4>Инструменты</h4><p>AWS Bedrock ($800 на команду); Safe и Zodiac Roles (открытый код); тестовая сеть Ethereum Sepolia и бесплатная раздача тестовых EURC от Circle (20 EURC за запрос); набор данных Mostly Right (51&nbsp;010 записей); открытые данные о курсах ČNB.</p></div>
+<div class="card"><h4>Работает сейчас (Sepolia, Thyme dev)</h4><p>Вход кошельком и отдельное пространство для каждого пользователя; подключение собственного Safe через API Thyme одной подписью; извлечение (Claude Haiku 4.5) и объяснения (Claude Sonnet 4.5) на Amazon Bedrock; 20 проверок и балл; выплаты EURC через Thyme Flow с оплаченным газом; авизо, таблица, журнал с цепочкой хешей, сравнение с SWIFT и SEPA; счета в PDF, PNG, JPEG и TXT; приложение для Safe{Wallet}; 27 демо-сценариев; режим «Jury demo».</p></div>
+<div class="card"><h4>Следующий шаг</h4><p>Лимиты и список получателей на блокчейне (allowances Zodiac Roles): код готов и проверен на копии Sepolia, нужен эндпоинт Thyme для обновления правила — следующий релиз Thyme. Вебхук с именем счёта (сейчас задача берёт самую старую одобренную выплату). Публичный след и Mostly Right — только с ключами доступа. PEP — только Wikidata и список олигархов. Не реализовано: негативные новости, проверка VAT (VIES), возраст кошелька. Safe с несколькими владельцами — вне рамок. Перед реальным использованием: авторизация на сброс демо и журнал.</p></div>
 </div>
-<h3>План</h3>
-<table class="num">
-<thead><tr><th>Когда</th><th>Что готово</th></tr></thead>
-<tbody>
-<tr><td>пн 16:00</td><td>каркас и тестовые средства</td></tr>
-<tr><td>пн 17:00</td><td>правила в блокчейне</td></tr>
-<tr><td>пн 19:30</td><td>агент платит по счёту — контрольная точка</td></tr>
-<tr><td>пн 23:00</td><td>интерфейс</td></tr>
-<tr><td>вт 02:00</td><td>документы и сравнение</td></tr>
-<tr><td>вт 06:00</td><td>сценарий подделки, выключатель, две репетиции</td></tr>
-<tr><td>вт 09:00</td><td>агент в облаке AWS (максимум 2 часа)</td></tr>
-<tr><td>вт 12:30</td><td>подача</td></tr>
-<tr><td>вт 13:30</td><td>заморозка кода</td></tr>
-</tbody>
-</table>
-<p><b>Было до хакатона:</b> продукт Thyme (закрытый код, организаторам раскрыт), открытые компоненты Safe и Zodiac Roles, библиотеки viem и wagmi, модели Claude в Bedrock. <b>Сделано на хакатоне:</b> всё после метки <code>hackathon-start</code> — агент, проверки, интерфейс, документы, сравнение. Код Thyme в проект не входит.</p>
+<h3>Инструменты</h3>
+<p>Amazon Bedrock (eu-central-1); Safe и Zodiac Roles (открытый код); Thyme Flow (HTTP API и вебхуки); тестовая сеть Ethereum Sepolia и тестовые EURC от Circle; набор данных Mostly Right; санкционные списки ЕС и OFAC, реестр ESMA, курсы ČNB; viem, wagmi, ConnectKit, TanStack, shadcn/ui, pdf-lib.</p>
+<p><b>Было до хакатона:</b> продукт Thyme (закрытый код, организаторам раскрыт), открытые компоненты Safe и Zodiac Roles, библиотеки viem и wagmi, модели Claude в Bedrock. <b>Сделано на хакатоне</b> (19–20 октября, всё после метки <code>hackathon-start</code>): приложение целиком, агент и 20 проверок, подключение Safe через API Thyme, задача Thyme Flow <code>pay-invoice</code>, документы, демо-данные и 27 сценариев, кодировщики лимитов Roles, этот питч. В самом Thyme за время хакатона добавлены два эндпоинта API, которыми пользуется подключение. Код Thyme в проект не входит.</p>
 </section>
 
 <section id="business">
@@ -377,11 +396,14 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size
 <dt>Стейблкоин</dt><dd>цифровая единица, привязанная к обычной валюте один к одному.</dd>
 <dt>EURC</dt><dd>евро-стейблкоин от Circle, выпущенный по правилам MiCA.</dd>
 <dt>MiCA</dt><dd>закон ЕС о рынках криптоактивов: правила для эмитентов и поставщиков услуг.</dd>
-<dt>Мандат</dt><dd>правило в блокчейне: кому, в чём и сколько агент может платить.</dd>
+<dt>Мандат</dt><dd>правило в блокчейне: что Thyme может делать из Safe; сегодня — только перевод EURC.</dd>
 <dt>Блокчейн</dt><dd>общая книга записей, которую никто не может переписать в одиночку; в ней лежат деньги и правило, и она сама исполняет правило.</dd>
 <dt>Ethereum, Base</dt><dd>две публичные блокчейн-сети; Base работает поверх Ethereum, переводы в ней дешевле и быстрее.</dd>
 <dt>Zodiac Roles</dt><dd>открытый модуль для Safe, который записывает мандат в блокчейн и отклоняет всё, что в него не входит.</dd>
-<dt>Агент</dt><dd>программа на основе ИИ: читает счета, проверяет получателя и отправляет платёж своим ключом доступа.</dd>
+<dt>Агент</dt><dd>программа на основе ИИ: читает счета, проводит проверки и передаёт одобренную выплату Thyme; ключей не держит.</dd>
+<dt>Thyme Flow</dt><dd>сервис Thyme, который исполняет перевод из Safe по правилу Roles и платит за газ; приложение общается с ним только через API и вебхуки.</dd>
+<dt>Балл</dt><dd>число 0–100, посчитанное из проверок; потолок 10 при провале критической и 40 при провале высокой. Любой провал останавливает выплату.</dd>
+<dt>Send anyway</dt><dd>ручное переопределение остановленного счёта: отметить каждую проваленную проверку, указать причину; запись в журнале, выплата только на адрес из реестра.</dd>
 <dt>OFAC SDN</dt><dd>санкционный список США; единственный официальный список, где есть адреса кошельков.</dd>
 <dt>Тестовая сеть</dt><dd>копия блокчейна без реальных денег; на ней идёт демо.</dd>
 <dt>Обмен на обычные деньги</dt><dd>продажа стейблкоина за евро или местную валюту на банковский счёт; эту часть делает подрядчик.</dd>
@@ -398,10 +420,13 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;font-size
 <li>Chainlink, курсы ETH/USD и EUR/USD в сети Sepolia; данные о комиссиях Ethereum (drpc), CoinGecko, Basescan — 19.10.2026.</li>
 <li>ČNB, api.cnb.cz/cnbapi/exrates/daily; законы 563/1991, 69/2006, 586/1992, 235/2004 Sb.</li>
 <li>Kraken, комиссии на вывод; ECD.rs; p2p.army; Xflow (FEMA); регламент (EU) 2023/1113.</li>
-<li>Zodiac Roles, «Permission an AI agent» (19.10.2026); наш тест Zodiac Roles v2.1.1, 48 сценариев на копии тестовой сети Sepolia (fork_per-payee.json).</li>
+<li>Zodiac Roles, «Permission an AI agent» (19.10.2026); Zodiac Roles v2.1.1; наш тест кодировщиков лимитов на копии Sepolia (<code>scripts/fork-test.ts</code>).</li>
+<li>Репозиторий проекта: <code>README.md</code> (статус, что сделано на хакатоне, to-do), <code>demo/README.md</code> (27 сценариев и ожидаемые исходы), <code>src/lib/agent/checks</code> и <code>descriptions/checks.ts</code> (20 проверок), <code>src/lib/agent/severity.ts</code> и <code>score.ts</code> (модель балла tiered-v1), <code>demo/fixtures/INV-0432.json</code> (балл 10), <code>thyme/README.md</code> (задача pay-invoice).</li>
+<li>Ethereum Sepolia, sepolia.etherscan.io (проверено 20.10.2026): 0xd469208c… (подключение Safe), 0x2bf6dc1c… (2,34 EURC), 0xa23fe7a8… (2,50 EURC).</li>
+<li>Демо: web-production-e14ca.up.railway.app (20.10.2026).</li>
 <li>Mostly Right (версия 0994c21f…, 19.10.2026); сводный санкционный список ЕС (15.10.2026); OFAC SDN.</li>
 <li>Deel и Remote, страницы с ценами; CryptoBriefing/DefiLlama (6.10.2026) — объём евро-стейблкоинов; отраслевые оценки B2B-платежей стейблкоинами за 2025 год; ESMA, заключение от 8.10.2026 о стейблкоинах вне MiCA.</li>
-<li>PLAN.md проекта; бриф организаторов Track 2.</li>
+<li><code>PLAN.md</code> проекта; бриф организаторов Track 2.</li>
 </ul>
 </section>
 </main>
