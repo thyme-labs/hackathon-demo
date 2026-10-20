@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun --bun vite dev --port 3000",
-    "build": "bun --bun vite build",
+    "build": "bun run pitch:sync && bun --bun vite build",
+    "pitch:sync": "rm -rf public/pitch && cp -r pitch public/pitch",
     "start": "bun .output/server/index.mjs",
     "typecheck": "tsc --noEmit",
     "fork-test": "bun run scripts/fork-test.ts",

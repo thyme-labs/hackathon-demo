@@ -16,6 +16,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PayoutsRouteImport } from './routes/payouts'
+import { Route as PitchRouteImport } from './routes/pitch'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -67,6 +68,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const PayoutsRoute = PayoutsRouteImport.update({
   id: '/payouts',
   path: '/payouts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PitchRoute = PitchRouteImport.update({
+  id: '/pitch',
+  path: '/pitch',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportsRoute = ReportsRouteImport.update({
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/invoices': typeof InvoicesRoute
   '/onboarding': typeof OnboardingRoute
   '/payouts': typeof PayoutsRoute
+  '/pitch': typeof PitchRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/api/health': typeof ApiHealthRoute
@@ -190,6 +197,7 @@ export interface FileRoutesByTo {
   '/invoices': typeof InvoicesRoute
   '/onboarding': typeof OnboardingRoute
   '/payouts': typeof PayoutsRoute
+  '/pitch': typeof PitchRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/api/health': typeof ApiHealthRoute
@@ -217,6 +225,7 @@ export interface FileRoutesById {
   '/invoices': typeof InvoicesRoute
   '/onboarding': typeof OnboardingRoute
   '/payouts': typeof PayoutsRoute
+  '/pitch': typeof PitchRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/api/health': typeof ApiHealthRoute
@@ -245,6 +254,7 @@ export interface FileRouteTypes {
     | '/invoices'
     | '/onboarding'
     | '/payouts'
+    | '/pitch'
     | '/reports'
     | '/settings'
     | '/api/health'
@@ -271,6 +281,7 @@ export interface FileRouteTypes {
     | '/invoices'
     | '/onboarding'
     | '/payouts'
+    | '/pitch'
     | '/reports'
     | '/settings'
     | '/api/health'
@@ -297,6 +308,7 @@ export interface FileRouteTypes {
     | '/invoices'
     | '/onboarding'
     | '/payouts'
+    | '/pitch'
     | '/reports'
     | '/settings'
     | '/api/health'
@@ -324,6 +336,7 @@ export interface RootRouteChildren {
   InvoicesRoute: typeof InvoicesRoute
   OnboardingRoute: typeof OnboardingRoute
   PayoutsRoute: typeof PayoutsRoute
+  PitchRoute: typeof PitchRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -392,6 +405,13 @@ declare module '@tanstack/react-router' {
       path: '/payouts'
       fullPath: '/payouts'
       preLoaderRoute: typeof PayoutsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pitch': {
+      id: '/pitch'
+      path: '/pitch'
+      fullPath: '/pitch'
+      preLoaderRoute: typeof PitchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reports': {
@@ -524,6 +544,7 @@ const rootRouteChildren: RootRouteChildren = {
   InvoicesRoute: InvoicesRoute,
   OnboardingRoute: OnboardingRoute,
   PayoutsRoute: PayoutsRoute,
+  PitchRoute: PitchRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
   ApiHealthRoute: ApiHealthRoute,

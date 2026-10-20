@@ -1,7 +1,6 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { LogOut } from 'lucide-react'
-import { useDisconnect } from 'wagmi'
+import { useAccountEffect, useDisconnect } from 'wagmi'
 import { fetchSession, signOut } from '@/lib/auth/siwe'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -10,17 +9,24 @@ const SESSION_QUERY_KEY = ['session'] as const
 /** Rail-bottom signed-in chip: the tenant label (short address or demo-xxxxxx) and a sign-out button. */
 export function SessionChip() {
   const session = useQuery({ queryKey: SESSION_QUERY_KEY, queryFn: fetchSession, staleTime: 30_000 })
-  const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const { disconnect } = useDisconnect()
 
+  // A full reload: every loader on the current page is tenant-scoped and would otherwise
+  // race the redirect with 401s. The wallet is disconnected first so the connect page does
+  // not bounce straight back to the dashboard.
   async function handleSignOut() {
-    await signOut()
     disconnect()
-    queryClient.setQueryData(SESSION_QUERY_KEY, null)
-    await queryClient.invalidateQueries()
-    void navigate({ to: '/' })
+    await signOut()
+    window.location.assign('/')
   }
+
+  // Disconnecting from the wallet UI (ConnectKit / MetaMask) ends a wallet session too.
+  useAccountEffect({
+    onDisconnect() {
+      if (session.data?.kind !== 'wallet') return
+      void signOut().then(() => window.location.assign('/'))
+    },
+  })
 
   if (!session.data) return null
   const title = session.data.kind === 'wallet' ? `Signed in as ${session.data.address}` : `Demo session ${session.data.label} (simulated payouts)`
