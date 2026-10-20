@@ -37,7 +37,9 @@ export function getWagmiConfig(opts: WalletOptions = {}) {
     connectors.push(
       walletConnect({
         projectId,
-        showQrModal: true,
+        // ConnectKit renders the QR in its own closable modal; WalletConnect's native modal
+        // cannot be dismissed when the relay rejects the origin.
+        showQrModal: false,
         metadata: {
           name: 'Thyme Payroll',
           description: 'Budgets agents cannot break.',
