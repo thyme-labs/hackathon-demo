@@ -26,7 +26,7 @@ This repository was created at kickoff. The starting point is the `hackathon-sta
 - Reports: remittance advice, ledger CSV/JSON, audit JSONL, the SWIFT/SEPA comparison with sourced assumptions (`config/rails.json`).
 - Synthetic demo data (`demo/`): five fictional contractors and 27 invoice scenarios in EUR/USD/GBP/INR, including forged wallets, prompt injections, duplicates, structuring, sanctions hits, homoglyph names and a new wallet on a known payee (`demo/README.md`).
 - `src/lib/roles`: viem encoders for per-beneficiary Zodiac Roles allowances, verified on a Sepolia fork (`scripts/fork-test.ts`).
-- The pitch site (`pitch/`) and `PLAN.md`.
+- `PLAN.md`.
 
 In the Thyme product itself (closed source, disclosed to the organisers) we added during the hackathon the management API endpoints the onboarding uses: `POST /api/v1/profiles` with `kind: safe_roles` and `POST /api/v1/profiles/{id}/setup`.
 
