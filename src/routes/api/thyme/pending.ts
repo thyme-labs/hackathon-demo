@@ -6,21 +6,19 @@ import { createFileRoute } from '@tanstack/react-router'
  * { payoutId, invoiceId, wallet, amountEurc } rows (amountEurc = EURC base units, 6 dp, decimal
  * string). `wallet` is always an APPROVED wallet of the beneficiary: the wallet printed on the invoice
  * when the owner approved it, else the primary wallet on file; a pending wallet is never returned.
- * Rows without an approved wallet are left out. Secured by X-Thyme-Token when THYME_PULL_TOKEN is set;
- * open in dev when it is empty.
+ * Rows without an approved wallet are left out. X-Thyme-Token selects the tenant: each tenant's pull token
+ * (settings.thymePullToken, handed to its executable at onboarding) or the env THYME_PULL_TOKEN for the founder.
  */
 export const Route = createFileRoute('/api/thyme/pending')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const { serverEnv } = await import('@/lib/env')
-        const expected = serverEnv.thymePullToken()
-        const provided = request.headers.get('x-thyme-token') ?? ''
-        if (expected && !timingSafeEqual(expected, provided)) {
-          return Response.json({ error: 'unauthorized' }, { status: 401 })
-        }
-        const { payouts } = await import('@/lib/store/repos')
-        const rows = payouts.listPendingForThyme()
+        const { resolveThymeTenant } = await import('@/lib/server/tenantThyme')
+        const tenant = resolveThymeTenant(request.headers.get('x-thyme-token') ?? '')
+        if (!tenant) return Response.json({ error: 'unauthorized' }, { status: 401 })
+        const { withTenant } = await import('@/lib/server/session')
+        const { forTenant } = await import('@/lib/store/repos')
+        const rows = withTenant(tenant, () => forTenant(tenant).payouts.listPendingForThyme())
         return Response.json(
           {
             token: 'EURC',
@@ -40,10 +38,3 @@ export const Route = createFileRoute('/api/thyme/pending')({
     },
   },
 })
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return diff === 0
-}

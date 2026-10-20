@@ -15,6 +15,11 @@ const toAnthropicContent = (block: LlmContent): Anthropic.ContentBlockParam => {
         type: 'document',
         source: { type: 'base64', media_type: 'application/pdf', data: toBase64(block.bytes) },
       }
+    case 'image':
+      return {
+        type: 'image',
+        source: { type: 'base64', media_type: block.format === 'png' ? 'image/png' : 'image/jpeg', data: toBase64(block.bytes) },
+      }
     case 'tool_use':
       return { type: 'tool_use', id: block.id, name: block.name, input: block.input }
     case 'tool_result':

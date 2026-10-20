@@ -1,6 +1,7 @@
 import { ConnectKitProvider } from 'connectkit'
 import type { ReactNode } from 'react'
 import { WagmiProvider } from 'wagmi'
+import { useSafeAppAutoConnect } from '@/lib/wallet/safeApp'
 import { getWagmiConfig, type WalletOptions } from '@/lib/wallet/wagmi'
 
 interface WalletProviderProps extends WalletOptions {
@@ -38,11 +39,18 @@ const connectKitTheme = {
   '--ck-connectbutton-hover-background': '#222226',
 }
 
+/** Inside the Safe{Wallet} iframe, connects through the Safe connector on mount; a no-op everywhere else. */
+function SafeAppAutoConnect() {
+  useSafeAppAutoConnect()
+  return null
+}
+
 /** Wagmi + ConnectKit. The QueryClientProvider comes from the router's ssr-query integration. */
 export function WalletProvider({ children, walletConnectProjectId, rpcUrl }: WalletProviderProps) {
   const config = getWagmiConfig({ walletConnectProjectId, rpcUrl })
   return (
     <WagmiProvider config={config}>
+      <SafeAppAutoConnect />
       <ConnectKitProvider
         mode="dark"
         customTheme={connectKitTheme}

@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFName, type PDFPage, PDFRawStream, PDFStream } from 'pdf-lib'
+import { invoiceFormatFromName } from '../extract'
 import { type CheckContext, type CheckSpec, makeResult, shortAddr } from './context'
 import { INSTRUCTION_LIKE } from './invoice_integrity'
 
@@ -313,6 +314,11 @@ export const run = async (ctx: CheckContext) => {
   const sourceBase = 'PDF object/content-stream scan (pdf-lib), no model'
   if (!path || !existsSync(path)) {
     return makeResult(spec, ctx, { status: 'skip', evidence: 'No PDF on disk for this invoice (stored extraction only); nothing to scan.', source: sourceBase })
+  }
+  // Neutral skip (no "not configured"/"offline" wording, so the scorer does not count it as a warning).
+  const format = invoiceFormatFromName(path)
+  if (format && format !== 'pdf') {
+    return makeResult(spec, ctx, { status: 'skip', evidence: `Not a PDF (${format} upload): the object and content-stream scan only applies to PDF files; nothing to scan.`, source: `${sourceBase}; file ${basename(path)}` })
   }
   const buffer = readFileSync(path)
   const bytes = new Uint8Array(buffer)

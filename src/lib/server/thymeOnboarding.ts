@@ -5,6 +5,7 @@
 // the settings table.
 import { type Address, getAddress, type Hex, isAddress } from 'viem'
 import { appendAudit, settings } from '../store/repos'
+import { tenantPullToken } from './tenantThyme'
 import { EURC_TRANSFER_RULE, executableBlockReason, getThymeClient, isThymeApiError, PAYROLL_CRON_TRIGGER, payrollExecutableArgs, ThymeApiError } from '../thyme/client'
 import { canOnboardThyme, getThymeEnv, getThymeTriggerMode, type ThymeEnv } from '../thyme/env'
 import { SEPOLIA_CHAIN_ID } from '../thyme/eurc'
@@ -137,7 +138,7 @@ export function buildOnboardingView(state: ThymeOnboardingState = readOnboarding
     apiHost: hostOf(env.apiUrl),
     executor: env.paymentExecutor,
     appUrl: env.appUrl,
-    pullTokenSet: Boolean(env.pullToken),
+    pullTokenSet: Boolean(tenantPullToken()),
     triggerMode: getThymeTriggerMode(env, { executableId: state.executableId, webhookUrl: state.webhookUrl }),
     safeAddress: state.safeAddress,
     ownerAddress: state.ownerAddress,
@@ -251,6 +252,11 @@ export async function prepareProfile(input: { safeAddress: string; ownerAddress:
   } catch (error) {
     settings.set(K.safeAddress, safeAddress)
     settings.set(K.ownerAddress, ownerAddress)
+    // Thyme already knows this Safe (the alias is derived from it): adopt that profile instead of failing.
+    if (isThymeApiError(error) && error.status === 409 && /alias already exists/i.test(error.message)) {
+      const adopted = await adoptExistingProfile({ client, projectId: env.projectId, alias, safeAddress, ownerAddress })
+      if (adopted) return adopted
+    }
     throw new Error(recordStepError('enable', error))
   }
 
@@ -294,6 +300,68 @@ export async function prepareProfile(input: { safeAddress: string; ownerAddress:
     scopeRules: prepared.scopeRules,
     setupDataHash: prepared.profile.setupDataHash,
     scope: { can: [...THYME_SCOPE.can], cant: [...THYME_SCOPE.cant] },
+  }
+}
+
+/**
+ * A profile for this Safe already exists in the project (the alias is derived from the Safe
+ * address). Take it over when it belongs to the same Safe and the connected wallet is the
+ * owner Thyme recorded; an active row skips the signing step, a pending one resumes it.
+ */
+async function adoptExistingProfile(input: {
+  client: ReturnType<typeof getThymeClient>
+  projectId: string
+  alias: string
+  safeAddress: Address
+  ownerAddress: Address
+}): Promise<PrepareProfileResult | null> {
+  const { client, projectId, alias, safeAddress, ownerAddress } = input
+  let existing: Awaited<ReturnType<typeof client.findProfileByAlias>>
+  try {
+    existing = await client.findProfileByAlias(projectId, alias)
+  } catch {
+    return null
+  }
+  const roles = existing?.safeRoles
+  if (!existing || !roles) return null
+  if (roles.safeAddress.toLowerCase() !== safeAddress.toLowerCase()) return null
+  if (roles.ownerAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+    throw new Error(`Payroll on ${safeAddress} was enabled by owner ${roles.ownerAddress}. Connect that wallet to continue.`)
+  }
+  const active = existing.status === 'active' || roles.setupStatus === 'active'
+  const profileStatus: 'active' | 'pending' = active ? 'active' : 'pending'
+  clearStepError()
+  settings.set(K.profileId, existing._id)
+  settings.set(K.profileAlias, existing.alias)
+  settings.set(K.profileStatus, profileStatus)
+  settings.set(K.profileError, roles.lastError ?? null)
+  settings.set(K.rolesProxy, roles.rolesProxyAddress)
+  settings.set(K.executorSafe, roles.executorSafeAddress)
+  settings.set(K.roleKey, roles.roleKey)
+  settings.set(K.setupTxHash, roles.setupTxHash ?? null)
+  settings.set(K.simulatedAt, null)
+  commitStep()
+  appendAudit({
+    actor: 'thyme',
+    event: 'thyme.profile_adopted',
+    details: { profile_id: existing._id, alias: existing.alias, safe: safeAddress, owner: ownerAddress, status: profileStatus, roles_proxy: roles.rolesProxyAddress },
+  })
+  const message = active
+    ? 'Payroll is already enabled on this Safe; nothing to sign. Continue with the executable.'
+    : 'Thyme already prepared this Safe; send the setup transaction or enter its hash.'
+  const rules = (roles.executionPolicy && 'rules' in roles.executionPolicy ? roles.executionPolicy.rules : [EURC_TRANSFER_RULE]) as PrepareProfileResult['scopeRules']
+  return {
+    profileId: existing._id,
+    alias: existing.alias,
+    chainId: existing.chainId || SEPOLIA_CHAIN_ID,
+    safeAddress,
+    ownerAddress,
+    transaction: { to: safeAddress, value: '0x0', data: '0x' },
+    predicted: { rolesProxy: roles.rolesProxyAddress, executorSafe: roles.executorSafeAddress },
+    scopeRules: rules,
+    setupDataHash: roles.setupDataHash ?? '',
+    scope: { can: [...THYME_SCOPE.can], cant: [...THYME_SCOPE.cant] },
+    adopted: { profileStatus, message },
   }
 }
 
@@ -422,6 +490,24 @@ export async function ensureExecutable(): Promise<ExecutableResult> {
 
   let executableId = state.executableId
   if (!executableId) {
+    // An executable for this profile may already exist (onboarding state was lost or reset):
+    // reuse it instead of creating a second one that would poll the same queue.
+    try {
+      const page = await client.listExecutables(env.projectId, { limit: 100 })
+      const existing = page.data.find((e) => e.profileId === state.profileId && e.functionId === env.functionId && e.status !== 'deleted')
+      if (existing) {
+        executableId = existing._id
+        settings.set(K.executableId, executableId)
+        settings.set(K.executableStatus, existing.status)
+        settings.remove(K.webhookUrl)
+        commitStep()
+        appendAudit({ actor: 'thyme', event: 'thyme.executable_adopted', details: { executable_id: executableId, profile_id: state.profileId, status: existing.status } })
+      }
+    } catch {
+      // Listing is best effort; fall through to creation.
+    }
+  }
+  if (!executableId) {
     try {
       const created = await client.createExecutable(
         {
@@ -430,7 +516,7 @@ export async function ensureExecutable(): Promise<ExecutableResult> {
           profileId: state.profileId,
           name: `payroll-${(state.safeAddress ?? state.profileId).slice(2, 10).toLowerCase()}`,
           trigger: PAYROLL_CRON_TRIGGER,
-          args: payrollExecutableArgs(env.appUrl, { safeAddress: state.safeAddress ?? undefined, pullToken: env.pullToken }),
+          args: payrollExecutableArgs(env.appUrl, { safeAddress: state.safeAddress ?? undefined, pullToken: tenantPullToken() }),
           gasMode: 'sponsored',
         },
         { idempotencyKey: `payroll-executable-${state.profileId}` },

@@ -32,12 +32,31 @@ function stubBrowserOnlySdksOnServer(): Plugin {
   }
 }
 
+/**
+ * Safe App packaging: Safe{Wallet} (app.safe.global) embeds the app in an iframe and fetches
+ * /manifest.json cross-origin, so the manifest needs CORS and no response may forbid framing
+ * (no X-Frame-Options; CSP frame-ancestors lists the Safe origins).
+ */
+const SAFE_FRAME_ANCESTORS = "frame-ancestors 'self' https://app.safe.global https://*.safe.global"
+const SAFE_APP_CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET',
+  'access-control-allow-headers': 'X-Requested-With, content-type, Authorization',
+}
+
 export default defineConfig({
   resolve: { tsconfigPaths: true },
   plugins: [
     stubBrowserOnlySdksOnServer(),
-    // bun:sqlite is a runtime builtin; keep it out of the server bundle.
-    nitro({ rollupConfig: { external: [/^bun:/] } }),
+    nitro({
+      // bun:sqlite is a runtime builtin; keep it out of the server bundle.
+      rollupConfig: { external: [/^bun:/] },
+      routeRules: {
+        '/**': { headers: { 'content-security-policy': SAFE_FRAME_ANCESTORS } },
+        '/manifest.json': { headers: { ...SAFE_APP_CORS, 'cache-control': 'public, max-age=300' } },
+        '/favicon.svg': { headers: SAFE_APP_CORS },
+      },
+    }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),

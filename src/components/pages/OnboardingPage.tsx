@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useModal } from 'connectkit'
 import { Check, ExternalLink, LoaderCircle, RefreshCw, RotateCcw, X } from 'lucide-react'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { type Address, getAddress, type Hex, isAddress } from 'viem'
 import { useAccount, useDisconnect, usePublicClient, useSendTransaction, useSwitchChain } from 'wagmi'
@@ -28,6 +28,7 @@ import {
   resetThymeExecutable,
   simulateThymeOnboarding,
 } from '@/lib/server/thyme.fns'
+import { inspectSafeAppSetup, useIsSafeApp, waitForSafeTxExecution } from '@/lib/wallet/safeApp'
 import { etherscanAddress, etherscanTx } from '@/lib/wallet/wagmi'
 
 type Phase = 'idle' | 'checking' | 'discovering' | 'preparing' | 'sending' | 'mining' | 'confirming' | 'provisioning'
@@ -74,7 +75,9 @@ function cardOf(step: OnboardingStep): StepKey {
 /** Connect wallet -> Safe -> Thyme Roles profile (one owner transaction) -> executable + webhook. Every card can be retried. */
 export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
   const queryClient = useQueryClient()
-  const { address, isConnected, chainId, status: accountStatus } = useAccount()
+  const { address, isConnected, chainId, status: accountStatus, connector } = useAccount()
+  // Opened as a Safe App inside Safe{Wallet}: the connected account is the Safe itself, not an owner EOA.
+  const isSafeApp = useIsSafeApp()
   const { setOpen } = useModal()
   const { disconnectAsync } = useDisconnect()
   const publicClient = usePublicClient()
@@ -96,10 +99,15 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
   const [txInput, setTxInput] = useState(view.setupTxHash ?? '')
   const [showManualTx, setShowManualTx] = useState(false)
   const [executable, setExecutable] = useState<ExecutableResult | null>(null)
+  /** Safe App with several owners: which owner Thyme should expect to sign the setup. */
+  const [ownerPick, setOwnerPick] = useState<Address | null>(null)
 
   const busy = phase !== 'idle'
   const safeValid = isAddress(safeInput)
   const owner = address as Address | undefined
+  const connectedSafe = isSafeApp ? owner : undefined
+  /** Safe discovery needs an owner EOA; inside the Safe App the host already names the Safe. */
+  const discoveryOwner = isSafeApp ? undefined : owner
   const wrongChain = isConnected && chainId !== SEPOLIA_CHAIN_ID
 
   // The server remembers the hash (recorded right after the wallet returned it): a reload resumes at the confirm step.
@@ -109,6 +117,14 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
       setTxInput(view.setupTxHash)
     }
   }, [view.setupTxHash, txHash])
+
+  // Safe App: step 2 starts from the Safe that Safe{Wallet} opened this app on.
+  useEffect(() => {
+    if (!connectedSafe || view.profileStatus === 'active') return
+    setSafeInput((current) => (current.toLowerCase() === connectedSafe.toLowerCase() ? current : getAddress(connectedSafe)))
+    setOwnerPick(null)
+    setPrepared(null)
+  }, [connectedSafe, view.profileStatus])
 
   function setStepError(step: StepKey, message: string | null) {
     setStepErrors((prev) => {
@@ -128,11 +144,11 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
 
   // Discover the owner's Safes once a wallet is connected (Safe transaction service, keyless). Retry bumps the nonce.
   useEffect(() => {
-    if (!owner) return
+    if (!discoveryOwner) return
     let cancelled = false
     setPhase((p) => (p === 'idle' ? 'discovering' : p))
     setStepError('safe', null)
-    discoverSafes(owner)
+    discoverSafes(discoveryOwner)
       .then((result) => {
         if (cancelled) return
         setDiscovered(result.safes.filter((s) => s.threshold === 1))
@@ -148,7 +164,7 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
     return () => {
       cancelled = true
     }
-  }, [owner, discoverNonce])
+  }, [discoveryOwner, discoverNonce])
 
   // Verify the chosen Safe on chain whenever the address changes. Retry bumps the nonce.
   useEffect(() => {
@@ -175,7 +191,18 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
     }
   }, [safeInput, safeValid, publicClient, verifyNonce])
 
-  const eligible = safeInfo ? eligibility(safeInfo, owner) : null
+  // Inside the Safe App the connected account is the Safe, so the owner-membership check does not apply to it.
+  const eligible = safeInfo ? eligibility(safeInfo, isSafeApp ? undefined : owner) : null
+  /** The owner Thyme expects to sign the setup: the connected EOA, or (Safe App) one of the Safe's owners. */
+  const prepareOwner: Address | undefined = isSafeApp
+    ? ownerPick && safeInfo?.owners.some((o) => o.toLowerCase() === ownerPick.toLowerCase())
+      ? ownerPick
+      : safeInfo?.owners.length === 1
+        ? safeInfo.owners[0]
+        : undefined
+    : owner
+  /** Safe App: what the prepared owner transaction wraps, and whether a Safe App can send it at all. */
+  const safeAppSetup = useMemo(() => (isSafeApp && prepared ? inspectSafeAppSetup(prepared.transaction.data as Hex) : null), [isSafeApp, prepared])
 
   const simulate = useMutation({
     mutationFn: () => simulateThymeOnboarding({ data: { safeAddress: safeValid ? getAddress(safeInput) : null } }),
@@ -263,12 +290,19 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
   }
 
   async function handlePrepare(): Promise<void> {
-    if (!owner || !safeValid) return
+    if (!prepareOwner || !safeValid) return
     setPhase('preparing')
     setStepError('enable', null)
     try {
-      const result = await prepareThymeProfile({ data: { safeAddress: getAddress(safeInput), ownerAddress: owner } })
-      setPrepared(result)
+      const result = await prepareThymeProfile({ data: { safeAddress: getAddress(safeInput), ownerAddress: prepareOwner } })
+      if (result.adopted?.profileStatus === 'active') {
+        // Thyme already had this Safe active: nothing to sign, the view moves on to the executable step.
+        setPrepared(null)
+        toast.success(result.adopted.message)
+      } else {
+        if (result.adopted) toast.message(result.adopted.message)
+        setPrepared(result)
+      }
       await invalidate()
     } catch (e) {
       setStepError('enable', describe(e))
@@ -278,7 +312,50 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
     }
   }
 
+  /**
+   * Safe App path. The prepared transaction is Safe.execTransaction with the owner's prevalidated signature:
+   * the Safe cannot send that to itself, so the inner call is queued as a Safe transaction instead and
+   * Safe{Wallet} collects the owner signature. Only a plain CALL fits; a MultiSend batch is a delegatecall,
+   * which a Safe App cannot request, so that case points the owner at their own wallet.
+   */
+  async function handleSendAsSafeApp(): Promise<void> {
+    if (!prepared || !owner || !publicClient || !connector) return
+    if (owner.toLowerCase() !== prepared.safeAddress.toLowerCase()) {
+      toast.error('Safe{Wallet} is open on a different Safe than the one prepared with Thyme')
+      return
+    }
+    if (!safeAppSetup?.ok) {
+      setStepError('confirm', safeAppSetup?.reason ?? 'The prepared transaction cannot be sent from a Safe App')
+      return
+    }
+    const { inner } = safeAppSetup
+    setPhase('sending')
+    setStepError('confirm', null)
+    let safeTxHash: Hex | null = null
+    let hash: Hex | null = null
+    try {
+      safeTxHash = await sendTransactionAsync({ chainId: SEPOLIA_CHAIN_ID, to: inner.to, value: inner.value, data: inner.data })
+      setPhase('mining')
+      toast.message('Safe transaction queued', { description: 'Sign and execute it in Safe{Wallet}; this page waits for the receipt.' })
+      const provider = await connector.getProvider()
+      hash = await waitForSafeTxExecution({ provider, publicClient, safe: owner, safeTxHash })
+      setTxHash(hash)
+      setTxInput(hash)
+      try {
+        await recordThymeSetupTx({ data: { profileId: prepared.profileId, txHash: hash } })
+      } catch {
+        // Thyme still gets the hash through confirm; the local state keeps it meanwhile.
+      }
+      await runConfirm(prepared.profileId, hash)
+    } catch (e) {
+      setStepError('confirm', safeTxHash && !hash ? `${describe(e)} Safe transaction ${safeTxHash} was queued; once Safe{Wallet} has executed it, enter the on-chain hash below.` : describe(e))
+      await invalidate()
+      setPhase('idle')
+    }
+  }
+
   async function handleSend(): Promise<void> {
+    if (isSafeApp) return handleSendAsSafeApp()
     if (!prepared || !owner || !publicClient) return
     if (owner.toLowerCase() !== prepared.ownerAddress.toLowerCase()) {
       toast.error('Connect the Safe owner wallet that prepared this profile')
@@ -374,6 +451,11 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
   }
   function handleSafeInput(event: FormEvent<HTMLInputElement>) {
     setSafeInput((event.target as HTMLInputElement).value.trim())
+    setOwnerPick(null)
+    setPrepared(null)
+  }
+  function handlePickOwner(candidate: Address) {
+    setOwnerPick(candidate)
     setPrepared(null)
   }
   function handleTxInput(event: FormEvent<HTMLInputElement>) {
@@ -418,7 +500,7 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
   // Server-persisted step, nudged by what the browser knows (wallet connection, a prepared transaction in memory).
   const activeStep: OnboardingStep = !isConnected && !view.ready ? 'connect' : view.step === 'connect' || view.step === 'safe' ? 'safe' : view.step === 'enable' && prepared ? 'setup' : view.step
   const activeCard = cardOf(activeStep)
-  const canPrepare = isConnected && safeValid && Boolean(eligible?.ok) && view.configured && !busy
+  const canPrepare = isConnected && safeValid && Boolean(eligible?.ok) && Boolean(prepareOwner) && view.configured && !busy
   const scope = prepared?.scope ?? view.scope
   const allowlist = prepared?.scopeRules ?? view.allowlist
   const profilePending = Boolean(view.profileId) && view.profileStatus !== 'active'
@@ -458,16 +540,26 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
             {isConnected && address ? (
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <AddressMono value={address} />
-                <span className={cn(wrongChain ? 'text-paused' : 'text-dim')}>{wrongChain ? `connected to chain ${chainId ?? '?'}, not Sepolia` : 'Sepolia'}</span>
-                {wrongChain ? (
+                <span className={cn(wrongChain ? 'text-paused' : 'text-dim')}>
+                  {wrongChain
+                    ? isSafeApp
+                      ? `this Safe lives on chain ${chainId ?? '?'}, not Sepolia: open the app from a Sepolia Safe`
+                      : `connected to chain ${chainId ?? '?'}, not Sepolia`
+                    : isSafeApp
+                      ? 'the Safe itself, through Safe{Wallet} · Sepolia'
+                      : 'Sepolia'}
+                </span>
+                {wrongChain && !isSafeApp ? (
                   <Button variant="secondary" size="sm" onClick={handleSwitchChainClick} disabled={busy}>
                     Switch to Sepolia
                   </Button>
                 ) : null}
-                <Button variant="ghost" size="sm" className="text-dim" onClick={handleReconnectClick} disabled={busy}>
-                  <RotateCcw aria-hidden />
-                  Reconnect
-                </Button>
+                {isSafeApp ? null : (
+                  <Button variant="ghost" size="sm" className="text-dim" onClick={handleReconnectClick} disabled={busy}>
+                    <RotateCcw aria-hidden />
+                    Reconnect
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-3">
@@ -503,12 +595,12 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
               </div>
             ) : null}
             <div className="flex gap-2">
-              <Input value={safeInput} onChange={handleSafeInput} placeholder="0x… Safe address on Sepolia" className="font-mono text-xs" readOnly={view.profileStatus === 'active'} />
+              <Input value={safeInput} onChange={handleSafeInput} placeholder="0x… Safe address on Sepolia" className="font-mono text-xs" readOnly={view.profileStatus === 'active' || isSafeApp} />
               <Button variant="ghost" size="sm" className="shrink-0 text-dim" onClick={handleRecheckSafe} disabled={!safeValid || phase === 'checking'} title="Re-validate the pasted address on chain">
                 <RefreshCw aria-hidden className={cn(phase === 'checking' && 'animate-spin')} />
                 Re-check
               </Button>
-              <Button variant="ghost" size="sm" className="shrink-0 text-dim" onClick={handleRediscover} disabled={!owner || phase === 'discovering'} title="Ask the Safe directory again for Safes owned by this wallet">
+              <Button variant="ghost" size="sm" className="shrink-0 text-dim" onClick={handleRediscover} disabled={!discoveryOwner || phase === 'discovering'} title="Ask the Safe directory again for Safes owned by this wallet">
                 <RefreshCw aria-hidden className={cn(phase === 'discovering' && 'animate-spin')} />
                 Re-discover
               </Button>
@@ -522,10 +614,29 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
                 </>
               ) : discoveryNote ? (
                 <span className="text-dim">{discoveryNote}</span>
+              ) : isSafeApp ? (
+                <span className="text-dim">{'Safe{Wallet} opened this app on this Safe. Thyme reads owners, threshold and version on chain.'}</span>
               ) : (
                 <span className="text-dim">Paste a Safe address or pick one above. Thyme reads owners, threshold and version on chain.</span>
               )}
             </div>
+            {isSafeApp && safeInfo && safeInfo.owners.length > 1 && view.profileStatus !== 'active' ? (
+              <div className="mt-3 text-xs">
+                <div className="text-dim">{'Owner who will sign the setup in Safe{Wallet}'}</div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {safeInfo.owners.map((candidate) => (
+                    <button
+                      type="button"
+                      key={candidate}
+                      onClick={() => handlePickOwner(candidate)}
+                      className={cn('rounded-md bg-raised px-2.5 py-1.5 font-mono text-xs transition-colors hover:text-text', prepareOwner?.toLowerCase() === candidate.toLowerCase() ? 'text-text ring-1 ring-sage/50' : 'text-dim')}
+                    >
+                      {candidate.slice(0, 8)}…{candidate.slice(-4)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </Step>
 
           {/* 3. Profile */}
@@ -584,20 +695,43 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
                   <dd>
                     <AddressMono value={prepared.transaction.to} /> <span className="text-dim">(your Safe, value 0)</span>
                   </dd>
+                  {safeAppSetup?.ok ? (
+                    <>
+                      <dt className="text-dim">safe tx</dt>
+                      <dd>
+                        <AddressMono value={safeAppSetup.inner.to} /> <span className="text-dim">{'(inner call, queued in Safe{Wallet})'}</span>
+                      </dd>
+                    </>
+                  ) : null}
                   <dt className="text-dim">profile</dt>
                   <dd className="truncate">{prepared.profileId}</dd>
                 </dl>
+                {safeAppSetup && !safeAppSetup.ok ? <div className="rounded-lg border border-paused/30 bg-paused/10 p-3 text-xs text-paused">{safeAppSetup.reason}</div> : null}
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button onClick={handleSendClick} disabled={busy || !isConnected}>
+                  <Button onClick={handleSendClick} disabled={busy || !isConnected || (isSafeApp && !safeAppSetup?.ok)}>
                     {phase === 'sending' || phase === 'mining' || phase === 'confirming' ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
-                    {phase === 'sending' ? 'Confirm in wallet…' : phase === 'mining' ? 'Waiting for the receipt…' : phase === 'confirming' ? 'Thyme is verifying…' : txHash ? 'Send again with MetaMask' : 'Send with MetaMask'}
+                    {phase === 'sending'
+                      ? 'Confirm in wallet…'
+                      : phase === 'mining'
+                        ? isSafeApp
+                          ? 'Waiting for Safe{Wallet} to execute…'
+                          : 'Waiting for the receipt…'
+                        : phase === 'confirming'
+                          ? 'Thyme is verifying…'
+                          : isSafeApp
+                            ? txHash
+                              ? 'Queue again in Safe{Wallet}'
+                              : 'Send as Safe transaction'
+                            : txHash
+                              ? 'Send again with MetaMask'
+                              : 'Send with MetaMask'}
                   </Button>
                   <Button variant="ghost" size="sm" className="text-dim" onClick={handlePrepareClick} disabled={!canPrepare}>
                     <RefreshCw aria-hidden />
                     Prepare again
                   </Button>
                   {txHash ? <AddressMono value={txHash} kind="tx" /> : null}
-                  <span className="text-xs text-dim">Plain EOA transaction from the owner; never through a Safe app or bundler.</span>
+                  <span className="text-xs text-dim">{isSafeApp ? 'Queued as a Safe transaction; sign and execute it in Safe{Wallet}.' : 'Plain EOA transaction from the owner; never through a Safe app or bundler.'}</span>
                 </div>
               </div>
             ) : null}

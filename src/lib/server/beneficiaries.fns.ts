@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { tenantMiddleware } from './tenantMiddleware'
 import type { Beneficiary } from '../store/types'
 import type { ApproveWalletResult, BeneficiaryWalletView } from './beneficiaryWallets'
 import type { BeneficiaryDetail, BeneficiaryListItem } from './dto'
@@ -8,7 +9,7 @@ export interface BeneficiaryDetailWithWallets extends BeneficiaryDetail {
   wallets: BeneficiaryWalletView[]
 }
 
-export const listBeneficiaries = createServerFn({ method: 'GET' }).handler(async (): Promise<BeneficiaryListItem[]> => {
+export const listBeneficiaries = createServerFn({ method: 'GET' }).middleware([tenantMiddleware]).handler(async (): Promise<BeneficiaryListItem[]> => {
   const { beneficiaries, payouts, invoices } = await import('../store/repos')
   const paid = payouts.paidThisMonthByBeneficiary()
   const counts = new Map<string, number>()
@@ -18,7 +19,7 @@ export const listBeneficiaries = createServerFn({ method: 'GET' }).handler(async
   return beneficiaries.list().map((b) => ({ ...b, paid_this_month_eur: paid[b.id] ?? 0, invoice_count: counts.get(b.id) ?? 0 }))
 })
 
-export const getBeneficiary = createServerFn({ method: 'GET', strict: false })
+export const getBeneficiary = createServerFn({ method: 'GET', strict: false }).middleware([tenantMiddleware])
   .validator((input: { id: string }) => input)
   .handler(async ({ data }): Promise<BeneficiaryDetailWithWallets | null> => {
     const { beneficiaries, payouts, invoices } = await import('../store/repos')
@@ -50,7 +51,7 @@ export const getBeneficiary = createServerFn({ method: 'GET', strict: false })
     }
   })
 
-export const setBeneficiaryStatus = createServerFn({ method: 'POST' })
+export const setBeneficiaryStatus = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { id: string; status: Beneficiary['status'] }) => input)
   .handler(async ({ data }): Promise<Beneficiary> => {
     const { beneficiaries, appendAudit } = await import('../store/repos')
@@ -63,7 +64,7 @@ export const setBeneficiaryStatus = createServerFn({ method: 'POST' })
 
 // ── Wallets (several per beneficiary; only approved ones are ever paid) ──────────────────────────
 
-export const listBeneficiaryWallets = createServerFn({ method: 'GET', strict: false })
+export const listBeneficiaryWallets = createServerFn({ method: 'GET', strict: false }).middleware([tenantMiddleware])
   .validator((input: { beneficiaryId: string }) => input)
   .handler(async ({ data }): Promise<BeneficiaryWalletView[]> => {
     const { listWallets } = await import('./beneficiaryWallets')
@@ -71,7 +72,7 @@ export const listBeneficiaryWallets = createServerFn({ method: 'GET', strict: fa
   })
 
 /** Adds a wallet as 'pending'; the owner approves it in a second, explicit step. */
-export const addBeneficiaryWallet = createServerFn({ method: 'POST' })
+export const addBeneficiaryWallet = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { beneficiaryId: string; wallet: string; label?: string | null }) => input)
   .handler(async ({ data }): Promise<BeneficiaryWalletView> => {
     const { addWallet } = await import('./beneficiaryWallets')
@@ -79,21 +80,21 @@ export const addBeneficiaryWallet = createServerFn({ method: 'POST' })
   })
 
 /** Owner action (audit owner.wallet_approved): the wallet may be paid; invoices stopped on it are re-run. */
-export const approveBeneficiaryWallet = createServerFn({ method: 'POST' })
+export const approveBeneficiaryWallet = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { walletId: string }) => input)
   .handler(async ({ data }): Promise<ApproveWalletResult> => {
     const { approveWallet } = await import('./beneficiaryWallets')
     return approveWallet({ walletId: data.walletId, approvedBy: 'owner' })
   })
 
-export const revokeBeneficiaryWallet = createServerFn({ method: 'POST' })
+export const revokeBeneficiaryWallet = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { walletId: string; reason?: string | null }) => input)
   .handler(async ({ data }): Promise<BeneficiaryWalletView> => {
     const { revokeWallet } = await import('./beneficiaryWallets')
     return revokeWallet(data)
   })
 
-export const setPrimaryBeneficiaryWallet = createServerFn({ method: 'POST' })
+export const setPrimaryBeneficiaryWallet = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { walletId: string }) => input)
   .handler(async ({ data }): Promise<BeneficiaryWalletView> => {
     const { setPrimary } = await import('./beneficiaryWallets')
@@ -101,7 +102,7 @@ export const setPrimaryBeneficiaryWallet = createServerFn({ method: 'POST' })
   })
 
 /** Invoice action card: approve the pending wallet printed on this invoice and re-run its checks. */
-export const approveInvoiceWallet = createServerFn({ method: 'POST' })
+export const approveInvoiceWallet = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { invoiceId: string }) => input)
   .handler(async ({ data }): Promise<ApproveWalletResult> => {
     const { approvePendingWalletForInvoice } = await import('./beneficiaryWallets')

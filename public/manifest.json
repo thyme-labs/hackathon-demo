@@ -1,0 +1,7 @@
+{
+  "name": "Thyme Payroll",
+  "description": "Pay contractors in EURC with AI checks and on-chain limits",
+  "iconPath": "favicon.svg",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }],
+  "safe_apps_permissions": []
+}

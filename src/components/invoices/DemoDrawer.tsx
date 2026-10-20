@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { FlaskConical, LoaderCircle, Plus } from 'lucide-react'
+import { Download, FlaskConical, LoaderCircle, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -42,23 +42,29 @@ export function DemoInvoiceList({ onQueued, enabled = true, className }: DemoInv
         const fraud = item.number === 'INV-0432' || item.number === 'INV-0440'
         const pending = enqueue.isPending && enqueue.variables === item.file
         return (
-          <Button
-            type="button"
-            variant="ghost"
-            key={item.file}
-            onClick={() => handleEnqueue(item.file)}
-            disabled={enqueue.isPending}
-            className="h-auto justify-start gap-3 rounded-lg px-3 py-3 text-left font-normal hover:bg-raised disabled:opacity-60"
-          >
-            <div className="min-w-0 flex-1">
-              <div className={cn('font-mono text-sm', fraud && 'text-blocked')}>
-                {item.number}
-                {item.alreadyQueued ? <span className="ml-2 text-xs text-dim">in queue</span> : null}
+          <div key={item.file} className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => handleEnqueue(item.file)}
+              disabled={enqueue.isPending}
+              className="h-auto min-w-0 flex-1 justify-start gap-3 rounded-lg px-3 py-3 text-left font-normal hover:bg-raised disabled:opacity-60"
+            >
+              <div className="min-w-0 flex-1">
+                <div className={cn('font-mono text-sm', fraud && 'text-blocked')}>
+                  {item.number}
+                  {item.alreadyQueued ? <span className="ml-2 text-xs text-dim">in queue</span> : null}
+                </div>
+                <div className="truncate text-xs text-dim">{item.hint}</div>
               </div>
-              <div className="truncate text-xs text-dim">{item.hint}</div>
-            </div>
-            {pending ? <LoaderCircle aria-hidden className="size-4 animate-spin text-dim" /> : <Plus aria-hidden className="size-4 text-dim" />}
-          </Button>
+              {pending ? <LoaderCircle aria-hidden className="size-4 animate-spin text-dim" /> : <Plus aria-hidden className="size-4 text-dim" />}
+            </Button>
+            <Button asChild variant="ghost" size="icon-sm" className="shrink-0 text-dim hover:bg-raised">
+              <a href={`/api/demo/invoices/${encodeURIComponent(item.file)}`} download={item.file} aria-label={`Download ${item.number} PDF`}>
+                <Download aria-hidden />
+              </a>
+            </Button>
+          </div>
         )
       })}
       {demo.data && demo.data.length === 0 ? <div className="px-3 text-xs text-dim">No demo PDFs found. Run `bun demo/make-invoices.ts`.</div> : null}

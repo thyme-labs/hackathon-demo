@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { tenantMiddleware } from './tenantMiddleware'
 import type { EnvStatusItem, SettingsView } from './dto'
 
 const ENV_NAMES: { name: string; group: EnvStatusItem['group']; secret: boolean }[] = [
@@ -30,7 +31,7 @@ function mask(value: string, secret: boolean): string {
   return `${value.slice(0, 2)}••••${value.slice(-2)} (${value.length})`
 }
 
-export const getSettings = createServerFn({ method: 'GET' }).handler(async (): Promise<SettingsView> => {
+export const getSettings = createServerFn({ method: 'GET' }).middleware([tenantMiddleware]).handler(async (): Promise<SettingsView> => {
   const { ensureBooted, bootStatus } = await import('./boot')
   ensureBooted()
   const { settings } = await import('../store/repos')
@@ -55,6 +56,7 @@ export const getSettings = createServerFn({ method: 'GET' }).handler(async (): P
     }),
     boot: { startedAt: boot.startedAt, running: boot.running, lastTickAt: boot.lastTickAt, lastError: boot.lastError },
     databasePath: serverEnv.databasePath(),
+    tenant: (await import('../store/repos')).currentTenant(),
   }
 })
 
@@ -67,7 +69,7 @@ export interface UpdateSettingsInput {
 }
 
 /** Safe address and the auto-pay settings; everything about Thyme comes from the onboarding. */
-export const updateSettings = createServerFn({ method: 'POST' })
+export const updateSettings = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: UpdateSettingsInput) => input)
   .handler(async ({ data }): Promise<{ ok: true; autoPay: { threshold: number; enabled: boolean } }> => {
     const { isAddress, getAddress } = await import('viem')
@@ -113,37 +115,35 @@ const LEGACY_KEYS = ['rolesProxy', 'roleKey', 'mandateId', 'installTxHash', 'age
  * PDFs; sets both agents back to running. Keeps the Safe address and the Thyme onboarding (profile, executable,
  * webhook): redoing those costs an owner transaction. Waits for an in-flight worker tick first.
  */
-export const resetDemoData = createServerFn({ method: 'POST' }).handler(async (): Promise<ResetDemoResult> => {
+export const resetDemoData = createServerFn({ method: 'POST' }).middleware([tenantMiddleware]).handler(async (): Promise<ResetDemoResult> => {
   const { ensureBooted, bootStatus } = await import('./boot')
   ensureBooted()
   for (let i = 0; i < 100 && bootStatus().ticking; i++) await new Promise((resolve) => setTimeout(resolve, 100))
-  const { getDb, settings, agents, appendAudit } = await import('../store/repos')
-  const { invoicesDir } = await import('../store/sqlite')
+  const { getDb, settings, agents, appendAudit, invoices, currentTenant, tenantAuditLogPath } = await import('../store/repos')
   const { resetJsonl } = await import('../reports/audit')
-  const { existsSync, readdirSync, rmSync } = await import('node:fs')
-  const { join } = await import('node:path')
+  const { existsSync, rmSync } = await import('node:fs')
+  const tenant = currentTenant()
   const db = getDb()
-  const count = (table: string): number => (db.query(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n
+  const count = (table: string): number => (db.query(`SELECT COUNT(*) AS n FROM ${table} WHERE tenant_id = ?`).get(tenant) as { n: number }).n
   const removed = { invoices: count('invoices'), payouts: count('payouts'), beneficiaries: count('beneficiaries'), audit: count('audit_log'), files: 0 }
+  // Uploaded PDFs are per invoice row (<invoices dir>/<id>.pdf): only this tenant's files go.
+  const files = invoices.list({ limit: 10_000 }).map((i) => i.file_path).filter((f): f is string => Boolean(f))
   db.transaction(() => {
-    db.run('DELETE FROM payouts')
-    db.run('DELETE FROM invoices')
-    db.run('DELETE FROM beneficiaries')
-    db.run('DELETE FROM audit_log')
-    db.run('UPDATE agents SET last_run_at = NULL')
+    db.run('DELETE FROM payouts WHERE tenant_id = ?', [tenant])
+    db.run('DELETE FROM invoices WHERE tenant_id = ?', [tenant])
+    db.run('DELETE FROM beneficiaries WHERE tenant_id = ?', [tenant])
+    db.run('DELETE FROM audit_log WHERE tenant_id = ?', [tenant])
+    db.run('UPDATE agents SET last_run_at = NULL WHERE tenant_id = ?', [tenant])
     for (const key of LEGACY_KEYS) settings.remove(key)
     settings.remove('thymeLastExecutionId')
   })()
   for (const agent of agents.list()) agents.setStatus(agent.id, 'running')
-  const dir = invoicesDir()
-  if (existsSync(dir)) {
-    for (const file of readdirSync(dir)) {
-      if (!file.toLowerCase().endsWith('.pdf')) continue
-      rmSync(join(dir, file), { force: true })
-      removed.files += 1
-    }
+  for (const file of files) {
+    if (!existsSync(file)) continue
+    rmSync(file, { force: true })
+    removed.files += 1
   }
-  resetJsonl()
+  resetJsonl(tenantAuditLogPath())
   appendAudit({ actor: 'owner', event: 'demo.reset', details: removed })
   return { ok: true, removed }
 })

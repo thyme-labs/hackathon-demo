@@ -19,12 +19,19 @@ import { Route as PayoutsRouteImport } from './routes/payouts'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiAuthAnonymousRouteImport } from './routes/api/auth/anonymous'
+import { Route as ApiAuthDevLoginRouteImport } from './routes/api/auth/dev-login'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
+import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
+import { Route as ApiAuthNonceRouteImport } from './routes/api/auth/nonce'
+import { Route as ApiAuthVerifyRouteImport } from './routes/api/auth/verify'
 import { Route as ApiInvoicesIdRouteImport } from './routes/api/invoices/$id'
 import { Route as ApiInvoicesUploadRouteImport } from './routes/api/invoices/upload'
 import { Route as ApiReportsAuditRouteImport } from './routes/api/reports/audit'
 import { Route as ApiReportsLedgerRouteImport } from './routes/api/reports/ledger'
 import { Route as ApiThymePendingRouteImport } from './routes/api/thyme/pending'
 import { Route as ApiWebhooksThymeRouteImport } from './routes/api/webhooks/thyme'
+import { Route as ApiDemoInvoicesFileRouteImport } from './routes/api/demo/invoices/$file'
 import { Route as ApiReportsRemittancePayoutIdRouteImport } from './routes/api/reports/remittance.$payoutId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -77,6 +84,36 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthAnonymousRoute = ApiAuthAnonymousRouteImport.update({
+  id: '/api/auth/anonymous',
+  path: '/api/auth/anonymous',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthDevLoginRoute = ApiAuthDevLoginRouteImport.update({
+  id: '/api/auth/dev-login',
+  path: '/api/auth/dev-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
+  id: '/api/auth/me',
+  path: '/api/auth/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthNonceRoute = ApiAuthNonceRouteImport.update({
+  id: '/api/auth/nonce',
+  path: '/api/auth/nonce',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthVerifyRoute = ApiAuthVerifyRouteImport.update({
+  id: '/api/auth/verify',
+  path: '/api/auth/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInvoicesIdRoute = ApiInvoicesIdRouteImport.update({
   id: '/api/invoices/$id',
   path: '/api/invoices/$id',
@@ -107,6 +144,11 @@ const ApiWebhooksThymeRoute = ApiWebhooksThymeRouteImport.update({
   path: '/api/webhooks/thyme',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDemoInvoicesFileRoute = ApiDemoInvoicesFileRouteImport.update({
+  id: '/api/demo/invoices/$file',
+  path: '/api/demo/invoices/$file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiReportsRemittancePayoutIdRoute =
   ApiReportsRemittancePayoutIdRouteImport.update({
     id: '/api/reports/remittance/$payoutId',
@@ -125,12 +167,19 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/auth/anonymous': typeof ApiAuthAnonymousRoute
+  '/api/auth/dev-login': typeof ApiAuthDevLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/nonce': typeof ApiAuthNonceRoute
+  '/api/auth/verify': typeof ApiAuthVerifyRoute
   '/api/invoices/$id': typeof ApiInvoicesIdRoute
   '/api/invoices/upload': typeof ApiInvoicesUploadRoute
   '/api/reports/audit': typeof ApiReportsAuditRoute
   '/api/reports/ledger': typeof ApiReportsLedgerRoute
   '/api/thyme/pending': typeof ApiThymePendingRoute
   '/api/webhooks/thyme': typeof ApiWebhooksThymeRoute
+  '/api/demo/invoices/$file': typeof ApiDemoInvoicesFileRoute
   '/api/reports/remittance/$payoutId': typeof ApiReportsRemittancePayoutIdRoute
 }
 export interface FileRoutesByTo {
@@ -144,12 +193,19 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/auth/anonymous': typeof ApiAuthAnonymousRoute
+  '/api/auth/dev-login': typeof ApiAuthDevLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/nonce': typeof ApiAuthNonceRoute
+  '/api/auth/verify': typeof ApiAuthVerifyRoute
   '/api/invoices/$id': typeof ApiInvoicesIdRoute
   '/api/invoices/upload': typeof ApiInvoicesUploadRoute
   '/api/reports/audit': typeof ApiReportsAuditRoute
   '/api/reports/ledger': typeof ApiReportsLedgerRoute
   '/api/thyme/pending': typeof ApiThymePendingRoute
   '/api/webhooks/thyme': typeof ApiWebhooksThymeRoute
+  '/api/demo/invoices/$file': typeof ApiDemoInvoicesFileRoute
   '/api/reports/remittance/$payoutId': typeof ApiReportsRemittancePayoutIdRoute
 }
 export interface FileRoutesById {
@@ -164,12 +220,19 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/auth/anonymous': typeof ApiAuthAnonymousRoute
+  '/api/auth/dev-login': typeof ApiAuthDevLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/nonce': typeof ApiAuthNonceRoute
+  '/api/auth/verify': typeof ApiAuthVerifyRoute
   '/api/invoices/$id': typeof ApiInvoicesIdRoute
   '/api/invoices/upload': typeof ApiInvoicesUploadRoute
   '/api/reports/audit': typeof ApiReportsAuditRoute
   '/api/reports/ledger': typeof ApiReportsLedgerRoute
   '/api/thyme/pending': typeof ApiThymePendingRoute
   '/api/webhooks/thyme': typeof ApiWebhooksThymeRoute
+  '/api/demo/invoices/$file': typeof ApiDemoInvoicesFileRoute
   '/api/reports/remittance/$payoutId': typeof ApiReportsRemittancePayoutIdRoute
 }
 export interface FileRouteTypes {
@@ -185,12 +248,19 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/api/health'
+    | '/api/auth/anonymous'
+    | '/api/auth/dev-login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/nonce'
+    | '/api/auth/verify'
     | '/api/invoices/$id'
     | '/api/invoices/upload'
     | '/api/reports/audit'
     | '/api/reports/ledger'
     | '/api/thyme/pending'
     | '/api/webhooks/thyme'
+    | '/api/demo/invoices/$file'
     | '/api/reports/remittance/$payoutId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -204,12 +274,19 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/api/health'
+    | '/api/auth/anonymous'
+    | '/api/auth/dev-login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/nonce'
+    | '/api/auth/verify'
     | '/api/invoices/$id'
     | '/api/invoices/upload'
     | '/api/reports/audit'
     | '/api/reports/ledger'
     | '/api/thyme/pending'
     | '/api/webhooks/thyme'
+    | '/api/demo/invoices/$file'
     | '/api/reports/remittance/$payoutId'
   id:
     | '__root__'
@@ -223,12 +300,19 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/api/health'
+    | '/api/auth/anonymous'
+    | '/api/auth/dev-login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/nonce'
+    | '/api/auth/verify'
     | '/api/invoices/$id'
     | '/api/invoices/upload'
     | '/api/reports/audit'
     | '/api/reports/ledger'
     | '/api/thyme/pending'
     | '/api/webhooks/thyme'
+    | '/api/demo/invoices/$file'
     | '/api/reports/remittance/$payoutId'
   fileRoutesById: FileRoutesById
 }
@@ -243,12 +327,19 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiAuthAnonymousRoute: typeof ApiAuthAnonymousRoute
+  ApiAuthDevLoginRoute: typeof ApiAuthDevLoginRoute
+  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiAuthMeRoute: typeof ApiAuthMeRoute
+  ApiAuthNonceRoute: typeof ApiAuthNonceRoute
+  ApiAuthVerifyRoute: typeof ApiAuthVerifyRoute
   ApiInvoicesIdRoute: typeof ApiInvoicesIdRoute
   ApiInvoicesUploadRoute: typeof ApiInvoicesUploadRoute
   ApiReportsAuditRoute: typeof ApiReportsAuditRoute
   ApiReportsLedgerRoute: typeof ApiReportsLedgerRoute
   ApiThymePendingRoute: typeof ApiThymePendingRoute
   ApiWebhooksThymeRoute: typeof ApiWebhooksThymeRoute
+  ApiDemoInvoicesFileRoute: typeof ApiDemoInvoicesFileRoute
   ApiReportsRemittancePayoutIdRoute: typeof ApiReportsRemittancePayoutIdRoute
 }
 
@@ -324,6 +415,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/anonymous': {
+      id: '/api/auth/anonymous'
+      path: '/api/auth/anonymous'
+      fullPath: '/api/auth/anonymous'
+      preLoaderRoute: typeof ApiAuthAnonymousRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/dev-login': {
+      id: '/api/auth/dev-login'
+      path: '/api/auth/dev-login'
+      fullPath: '/api/auth/dev-login'
+      preLoaderRoute: typeof ApiAuthDevLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/me': {
+      id: '/api/auth/me'
+      path: '/api/auth/me'
+      fullPath: '/api/auth/me'
+      preLoaderRoute: typeof ApiAuthMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/nonce': {
+      id: '/api/auth/nonce'
+      path: '/api/auth/nonce'
+      fullPath: '/api/auth/nonce'
+      preLoaderRoute: typeof ApiAuthNonceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/verify': {
+      id: '/api/auth/verify'
+      path: '/api/auth/verify'
+      fullPath: '/api/auth/verify'
+      preLoaderRoute: typeof ApiAuthVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/invoices/$id': {
       id: '/api/invoices/$id'
       path: '/api/invoices/$id'
@@ -366,6 +499,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksThymeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/demo/invoices/$file': {
+      id: '/api/demo/invoices/$file'
+      path: '/api/demo/invoices/$file'
+      fullPath: '/api/demo/invoices/$file'
+      preLoaderRoute: typeof ApiDemoInvoicesFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/reports/remittance/$payoutId': {
       id: '/api/reports/remittance/$payoutId'
       path: '/api/reports/remittance/$payoutId'
@@ -387,12 +527,19 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiAuthAnonymousRoute: ApiAuthAnonymousRoute,
+  ApiAuthDevLoginRoute: ApiAuthDevLoginRoute,
+  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiAuthMeRoute: ApiAuthMeRoute,
+  ApiAuthNonceRoute: ApiAuthNonceRoute,
+  ApiAuthVerifyRoute: ApiAuthVerifyRoute,
   ApiInvoicesIdRoute: ApiInvoicesIdRoute,
   ApiInvoicesUploadRoute: ApiInvoicesUploadRoute,
   ApiReportsAuditRoute: ApiReportsAuditRoute,
   ApiReportsLedgerRoute: ApiReportsLedgerRoute,
   ApiThymePendingRoute: ApiThymePendingRoute,
   ApiWebhooksThymeRoute: ApiWebhooksThymeRoute,
+  ApiDemoInvoicesFileRoute: ApiDemoInvoicesFileRoute,
   ApiReportsRemittancePayoutIdRoute: ApiReportsRemittancePayoutIdRoute,
 }
 export const routeTree = rootRouteImport

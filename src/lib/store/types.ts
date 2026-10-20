@@ -24,6 +24,7 @@ export type BeneficiaryWalletSource = 'registration' | 'invoice' | 'manual'
 
 export interface Beneficiary {
   id: string
+  tenant_id: string
   name: string
   type: BeneficiaryType
   country: string | null
@@ -60,6 +61,7 @@ export interface BeneficiaryWallet {
 
 export interface Invoice {
   id: string
+  tenant_id: string
   beneficiary_id: string | null
   file_path: string | null
   number: string | null
@@ -88,6 +90,7 @@ export interface Invoice {
 
 export interface Payout {
   id: string
+  tenant_id: string
   invoice_id: string
   beneficiary_id: string | null
   amount_eurc: string
@@ -119,6 +122,7 @@ export interface Payout {
 }
 
 export interface Agent {
+  tenant_id: string
   id: string
   name: string
   kind: AgentKind
@@ -129,6 +133,7 @@ export interface Agent {
 
 export interface AuditEntry {
   id: number
+  tenant_id: string
   ts: string
   actor: AuditActor
   invoice_id: string | null
@@ -138,6 +143,7 @@ export interface AuditEntry {
 }
 
 export interface Setting {
+  tenant_id: string
   key: string
   value: string | null
 }

@@ -7,7 +7,8 @@
 import { type Address, getAddress, type Hex, isAddress, keccak256, toHex } from 'viem'
 import { type PaymentExecutorName, serverEnv } from '../env'
 import type { PayoutActionResult } from '../server/dto'
-import { appendAudit, beneficiaries, beneficiaryWallets, invoices, nowIso, payouts, settings } from '../store/repos'
+import { tenantPullToken } from '../server/tenantThyme'
+import { appendAudit, beneficiaries, beneficiaryWallets, currentTenant, invoices, isAnonymousTenant, nowIso, payouts, settings } from '../store/repos'
 import type { AuditActor, Invoice, Payout } from '../store/types'
 import { THYME_SETTINGS_KEYS } from '../thyme/types'
 
@@ -45,6 +46,7 @@ export function readThymeIds(): { executableId: string | null; webhookUrl: strin
 /** Which path a payout takes right now. */
 export async function resolveExecutionMode(executor: PaymentExecutorName = serverEnv.paymentExecutor()): Promise<{ mode: ExecutionMode; reason: string }> {
   if (executor !== 'thyme') return { mode: 'simulated', reason: 'PAYMENT_EXECUTOR=simulated · labelled fake payouts' }
+  if (isAnonymousTenant(currentTenant())) return { mode: 'simulated', reason: 'demo session without a wallet · labelled fake payouts' }
   const { getThymeTriggerMode } = await import('../thyme/env')
   const ids = readThymeIds()
   const trigger = getThymeTriggerMode(undefined, ids)
@@ -235,7 +237,7 @@ export async function executeOnePayout(payoutId: string, opts: { force?: boolean
   try {
     const result = await executePayout(
       { payoutId: payout.id, invoiceId: invoice.id, payee: to, amountEurcUnits: BigInt(payout.amount_eurc) },
-      { webhookUrl: ids.webhookUrl ?? undefined, attempt: payout.attempt, safeAddress: readSafeAddress() ?? undefined, appUrl: env.appUrl, pullToken: env.pullToken, timeoutMs: THYME_WAIT_MS },
+      { webhookUrl: ids.webhookUrl ?? undefined, attempt: payout.attempt, safeAddress: readSafeAddress() ?? undefined, appUrl: env.appUrl, pullToken: tenantPullToken(), timeoutMs: THYME_WAIT_MS },
     )
     if (result.thymeExecutionId) settings.set(THYME_SETTINGS_KEYS.lastExecutionId, result.thymeExecutionId)
     appendAudit({

@@ -1,10 +1,10 @@
 // Server-only glue between the store and src/lib/reports.
 import originator from '../../../config/originator.json'
-import { appendJsonl, auditLogPath, buildComparisonCard, buildRemittanceAdvice, currentMonth, ledgerCsv, payoutMonth, readAll, staticSources, toJsonl, verifyChain } from '../reports'
+import { appendJsonl, buildComparisonCard, buildRemittanceAdvice, currentMonth, ledgerCsv, payoutMonth, readAll, staticSources, toJsonl, verifyChain } from '../reports'
 import type { ChecklistItem, NetworkFee } from '../reports/types'
 import { finishedEntries, parseChecklist } from '../agent/checklist'
 import { serverEnv } from '../env'
-import { audit, beneficiaries, invoices, payouts, settings } from '../store/repos'
+import { audit, beneficiaries, invoices, payouts, settings, tenantAuditLogPath } from '../store/repos'
 import type { Payout } from '../store/types'
 import type { ReportsView } from './dto'
 
@@ -77,7 +77,7 @@ export function buildLedgerCsv(month: string | null): string {
 }
 
 export function buildAuditJsonl(): string {
-  const records = readAll(auditLogPath())
+  const records = readAll(tenantAuditLogPath())
   if (records.length > 0) return toJsonl(records)
   // No JSONL yet (fresh volume): seed it from the SQLite rows so the export is never empty.
   for (const row of audit.list({ limit: 5000 }).reverse()) {
@@ -87,9 +87,9 @@ export function buildAuditJsonl(): string {
     } catch {
       details = {}
     }
-    appendJsonl({ ts: row.ts, actor: row.actor, event: row.event, invoice_id: row.invoice_id, beneficiary_id: row.beneficiary_id, details })
+    appendJsonl({ ts: row.ts, actor: row.actor, event: row.event, invoice_id: row.invoice_id, beneficiary_id: row.beneficiary_id, details }, tenantAuditLogPath())
   }
-  return toJsonl(readAll(auditLogPath()))
+  return toJsonl(readAll(tenantAuditLogPath()))
 }
 
 export function buildReportsView(month: string | null): ReportsView {
@@ -113,7 +113,7 @@ export function buildReportsView(month: string | null): ReportsView {
   const card = buildComparisonCard(items, { month: period })
   const sources = [...card.sources, ...staticSources()]
   const seen = new Set<string>()
-  const chain = verifyChain(auditLogPath())
+  const chain = verifyChain(tenantAuditLogPath())
   return {
     month: period,
     months: months.length ? months : [period],

@@ -12,41 +12,41 @@ const Callback = z.object({
   error: z.string().optional().nullable(),
 })
 
-/** POST /api/webhooks/thyme — execution callback from Thyme Flow. Same token rule as /api/thyme/pending. */
+/** POST /api/webhooks/thyme — execution callback from Thyme Flow. X-Thyme-Token selects the tenant like /api/thyme/pending. */
 export const Route = createFileRoute('/api/webhooks/thyme')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { serverEnv } = await import('@/lib/env')
-        const expected = serverEnv.thymePullToken()
-        const provided = request.headers.get('x-thyme-token') ?? ''
-        if (expected && expected !== provided) {
-          return Response.json({ error: 'unauthorized' }, { status: 401 })
-        }
+        const { resolveThymeTenant } = await import('@/lib/server/tenantThyme')
+        const tenant = resolveThymeTenant(request.headers.get('x-thyme-token') ?? '')
+        if (!tenant) return Response.json({ error: 'unauthorized' }, { status: 401 })
         const parsed = Callback.safeParse(await request.json().catch(() => null))
         if (!parsed.success) {
           return Response.json({ error: 'invalid payload', issues: parsed.error.issues }, { status: 400 })
         }
         const body = parsed.data
-        const { payouts, invoices, beneficiaries, appendAudit, nowIso } = await import('@/lib/store/repos')
-        const { onPayoutCallback } = await import('@/lib/integration')
+        const { withTenant } = await import('@/lib/server/session')
+        return withTenant(tenant, async () => {
+          const { forTenant, nowIso } = await import('@/lib/store/repos')
+          const { payouts, invoices, beneficiaries, appendAudit } = forTenant(tenant)
+          const { onPayoutCallback } = await import('@/lib/integration')
 
-        const payout =
-          (body.payoutId ? payouts.get(body.payoutId) : null) ??
-          payouts.byExecutionId(body.executionId) ??
-          (body.invoiceId ? (payouts.byInvoice(body.invoiceId)[0] ?? null) : null)
-        if (!payout) return Response.json({ error: 'payout not found' }, { status: 404 })
+          const payout =
+            (body.payoutId ? payouts.get(body.payoutId) : null) ??
+            payouts.byExecutionId(body.executionId) ??
+            (body.invoiceId ? (payouts.byInvoice(body.invoiceId)[0] ?? null) : null)
+          if (!payout) return Response.json({ error: 'payout not found' }, { status: 404 })
 
-        const ts = nowIso()
-        const settled = payout.status === 'confirmed' || payout.status === 'failed' || payout.status === 'reverted'
-        if (settled) {
-          // Already settled (by an earlier callback or by the payment agent reading Thyme's result):
-          // keep the verdict, only fill in transaction details the row is missing. Never pay twice.
-          const merged = payouts.update(payout.id, {
-            thyme_execution_id: payout.thyme_execution_id ?? body.executionId,
-            tx_hash: payout.tx_hash ?? body.txHash ?? null,
-            block_number: payout.block_number ?? body.blockNumber ?? null,
-            gas_used: payout.gas_used ?? body.gasUsed ?? null,
+          const ts = nowIso()
+          const settled = payout.status === 'confirmed' || payout.status === 'failed' || payout.status === 'reverted'
+          if (settled) {
+            // Already settled (by an earlier callback or by the payment agent reading Thyme's result):
+            // keep the verdict, only fill in transaction details the row is missing. Never pay twice.
+            const merged = payouts.update(payout.id, {
+              thyme_execution_id: payout.thyme_execution_id ?? body.executionId,
+              tx_hash: payout.tx_hash ?? body.txHash ?? null,
+              block_number: payout.block_number ?? body.blockNumber ?? null,
+              gas_used: payout.gas_used ?? body.gasUsed ?? null,
           })
           appendAudit({ actor: 'thyme', event: 'payout.callback_after_settlement', invoiceId: payout.invoice_id, beneficiaryId: payout.beneficiary_id, details: { payoutId: payout.id, executionId: body.executionId, callback: body.status, kept: payout.status } })
           return Response.json({ ok: true, payout: merged, ignored: true })
@@ -79,6 +79,7 @@ export const Route = createFileRoute('/api/webhooks/thyme')({
         })
         void onPayoutCallback(payout.id)
         return Response.json({ ok: true, payout: updated })
+        })
       },
     },
   },

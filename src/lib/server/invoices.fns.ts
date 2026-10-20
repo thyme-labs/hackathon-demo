@@ -1,6 +1,7 @@
 // Server functions for the invoice flow. Handlers dynamic-import server-only modules so this file
 // can be imported from client components.
 import { createServerFn } from '@tanstack/react-start'
+import { tenantMiddleware } from './tenantMiddleware'
 import type { ChecklistSnapshot } from '../agent/types'
 import type { Beneficiary } from '../store/types'
 import type { DemoInvoiceItem, ExtractedView, InvoiceDetail, InvoiceListItem, OverrideCheckItem, RegistrationPlan } from './dto'
@@ -11,7 +12,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   mock: 'mock provider (no model call)',
 }
 
-export const listInvoices = createServerFn({ method: 'GET' }).handler(async (): Promise<InvoiceListItem[]> => {
+export const listInvoices = createServerFn({ method: 'GET' }).middleware([tenantMiddleware]).handler(async (): Promise<InvoiceListItem[]> => {
   const { ensureBooted } = await import('./boot')
   ensureBooted()
   const { invoices, beneficiaries } = await import('../store/repos')
@@ -33,7 +34,7 @@ export const listInvoices = createServerFn({ method: 'GET' }).handler(async (): 
   }))
 })
 
-export const getInvoice = createServerFn({ method: 'GET', strict: false })
+export const getInvoice = createServerFn({ method: 'GET', strict: false }).middleware([tenantMiddleware])
   .validator((input: { id: string }) => input)
   .handler(async ({ data }): Promise<InvoiceDetail | null> => {
     const { ensureBooted } = await import('./boot')
@@ -110,7 +111,7 @@ const DEMO_HINTS: Record<string, string> = {
   'INV-0440': 'INJECTION · hidden instructions in the PDF',
 }
 
-export const listDemoInvoices = createServerFn({ method: 'GET' }).handler(async (): Promise<DemoInvoiceItem[]> => {
+export const listDemoInvoices = createServerFn({ method: 'GET' }).middleware([tenantMiddleware]).handler(async (): Promise<DemoInvoiceItem[]> => {
   const { readdirSync, statSync } = await import('node:fs')
   const { join } = await import('node:path')
   const { demoInvoicesDir } = await import('./demo')
@@ -129,7 +130,7 @@ export const listDemoInvoices = createServerFn({ method: 'GET' }).handler(async 
   })
 })
 
-export const enqueueDemoInvoice = createServerFn({ method: 'POST' })
+export const enqueueDemoInvoice = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { file: string }) => input)
   .handler(async ({ data }): Promise<{ id: string }> => {
     const { enqueueDemoFile } = await import('./demo')
@@ -141,7 +142,7 @@ export const enqueueDemoInvoice = createServerFn({ method: 'POST' })
  * match is deterministic: tax id, wallet on file, then name). Refused while a payout is in flight or once paid,
  * so a re-run can never pay twice. Idempotent: an invoice already queued is left queued.
  */
-export const retryInvoice = createServerFn({ method: 'POST' })
+export const retryInvoice = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { id: string }) => input)
   .handler(async ({ data }): Promise<{ ok: true; status: string }> => {
     const { invoices, payouts, appendAudit } = await import('../store/repos')
@@ -165,7 +166,7 @@ export const retryInvoice = createServerFn({ method: 'POST' })
  * "Mark as failed / discard": settle every pending or submitted payout of the invoice as failed and put the invoice
  * itself in `failed`, so a stuck item stops blocking the queue. Idempotent; a paid invoice is left untouched.
  */
-export const discardInvoice = createServerFn({ method: 'POST' })
+export const discardInvoice = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { id: string }) => input)
   .handler(async ({ data }): Promise<{ ok: true; status: string; discardedPayouts: number }> => {
     const { invoices, payouts, appendAudit } = await import('../store/repos')
@@ -190,7 +191,7 @@ export const discardInvoice = createServerFn({ method: 'POST' })
  * Retry icon in the queue list: a failed invoice whose last payout failed or reverted gets "Retry payout" (new
  * Idempotency-Key); every other failed / stopped invoice gets its checks re-run. Idempotent like both callees.
  */
-export const quickRetryInvoice = createServerFn({ method: 'POST' })
+export const quickRetryInvoice = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { id: string }) => input)
   .handler(async ({ data }): Promise<{ action: 'retry_payout' | 'rerun_checks'; message: string }> => {
     const { invoices, payouts } = await import('../store/repos')
@@ -206,12 +207,12 @@ export const quickRetryInvoice = createServerFn({ method: 'POST' })
     return { action: 'rerun_checks', message: result.status === 'queued' ? 'Checks queued again' : `Invoice is ${result.status}` }
   })
 
-export const runWorkerOnce = createServerFn({ method: 'POST' }).handler(async () => {
+export const runWorkerOnce = createServerFn({ method: 'POST' }).middleware([tenantMiddleware]).handler(async () => {
   const { runOnce } = await import('./boot')
   return runOnce()
 })
 
-export const forceInvoicePayout = createServerFn({ method: 'POST' })
+export const forceInvoicePayout = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { id: string }) => input)
   .handler(async ({ data }) => {
     const { forcePayout } = await import('../payments/runner')
@@ -237,7 +238,7 @@ export interface ApproveBeneficiaryResult {
 }
 
 /** Creates (or updates) the beneficiary for a held invoice and describes what registering it means (no Safe tx). */
-export const approveBeneficiary = createServerFn({ method: 'POST' })
+export const approveBeneficiary = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: ApproveBeneficiaryInput) => input)
   .handler(async ({ data }): Promise<ApproveBeneficiaryResult> => {
     const { isAddress, getAddress } = await import('viem')
@@ -296,7 +297,7 @@ export interface ApprovalResult {
  * mode 'hold': the invoice is approved and kept on hold; nothing is enqueued until the owner clicks "Send".
  * No Safe transaction: the rail was scoped once, at onboarding.
  */
-export const registerBeneficiary = createServerFn({ method: 'POST' })
+export const registerBeneficiary = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: RegisterBeneficiaryInput) => input)
   .handler(async ({ data }): Promise<ApprovalResult> => {
     const { invoices, beneficiaries, appendAudit, agents } = await import('../store/repos')
@@ -355,7 +356,7 @@ export const registerBeneficiary = createServerFn({ method: 'POST' })
  * "Send": release an approved invoice that the owner kept on hold. Enqueues the payout the normal way (recipient =
  * wallet on file, payment agent -> Thyme). Idempotent: an in-flight payout is reported instead of created twice.
  */
-export const sendHeldInvoice = createServerFn({ method: 'POST' })
+export const sendHeldInvoice = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { id: string }) => input)
   .handler(async ({ data }): Promise<ApprovalResult> => {
     const { invoices, beneficiaries, payouts, appendAudit, agents } = await import('../store/repos')
@@ -406,7 +407,7 @@ export interface OverridePayoutResult extends ApprovalResult {
  * reason, and the payout is enqueued the normal way (recipient = wallet on file, through the payment agent and Thyme).
  * Audit: owner.override with the reason and the check ids. The invoice and its payout carry override = 1.
  */
-export const overridePayout = createServerFn({ method: 'POST' })
+export const overridePayout = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: OverridePayoutInput) => input)
   .handler(async ({ data }): Promise<OverridePayoutResult> => {
     const { isAddress, getAddress } = await import('viem')

@@ -368,6 +368,33 @@ export class ThymeClient {
     return this.request<ThymeProfile>(`/api/v1/profiles/${encodeURIComponent(profileId)}`)
   }
 
+  /** Profiles of one project (first page is enough for a payroll project). */
+  async listProfiles(projectId: string, options: { limit?: number; cursor?: string } = {}): Promise<ThymePage<ThymeProfile>> {
+    const query = buildQuery({ projectId, limit: options.limit, cursor: options.cursor })
+    const response = await this.requestRaw<ThymeProfile[]>(`/api/v1/profiles${query}`)
+    return pageOf(response)
+  }
+
+  /** Executables of one project (first page). */
+  async listExecutables(projectId: string, options: { limit?: number; cursor?: string } = {}): Promise<ThymePage<ThymeExecutable>> {
+    const query = buildQuery({ projectId, limit: options.limit, cursor: options.cursor })
+    const response = await this.requestRaw<ThymeExecutable[]>(`/api/v1/executables${query}`)
+    return pageOf(response)
+  }
+
+  /** The project's profile with this alias, or null. */
+  async findProfileByAlias(projectId: string, alias: string): Promise<ThymeProfile | null> {
+    let cursor: string | undefined
+    for (let page = 0; page < 10; page += 1) {
+      const result = await this.listProfiles(projectId, { limit: 100, cursor })
+      const hit = result.data.find((profile) => profile.alias === alias)
+      if (hit) return hit
+      if (result.pagination.isDone) break
+      cursor = result.pagination.cursor
+    }
+    return null
+  }
+
   // ── Executables ──
 
   /**

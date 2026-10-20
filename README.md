@@ -63,3 +63,20 @@ bun run dev              # http://localhost:3000
 ```
 
 See `.env.example` for the Thyme, Bedrock, Tatum and Apify variables. `thyme/README.md` covers the Flow task.
+
+## Safe{Wallet} Safe App
+
+The app is packaged as a Safe App: `public/manifest.json` (served with `Access-Control-Allow-Origin: *`) and a
+`Content-Security-Policy: frame-ancestors 'self' https://app.safe.global https://*.safe.global` header on every
+response (`routeRules` in `vite.config.ts`; no `X-Frame-Options`). In Safe{Wallet} go to Apps, "My custom apps",
+"Add custom Safe App" and paste:
+
+```
+https://web-production-e14ca.up.railway.app
+```
+
+Inside the iframe the wagmi `safe` connector connects on its own (`src/lib/wallet/safeApp.ts`): the connected
+account is the Safe, so step 2 of the onboarding is pre-filled from it and the owner-membership check does not
+apply. Step 3 unwraps Thyme's prepared `Safe.execTransaction` and queues the inner call as a Safe transaction
+when it is a plain CALL; the usual setup is a MultiSend batch (delegatecall), which a Safe App cannot send, so
+the page says to run the one-time setup from the owner's MetaMask instead. MetaMask and WalletConnect are unchanged.

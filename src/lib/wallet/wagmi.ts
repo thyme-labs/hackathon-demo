@@ -14,7 +14,8 @@ let cached: { key: string; config: ReturnType<typeof createConfig> } | null = nu
 
 /**
  * Sepolia-only wagmi config. Injected (MetaMask, Rabby, ...) always; WalletConnect only in the
- * browser and only when a project id is configured. Safe{Wallet} connects through WalletConnect.
+ * browser and only when a project id is configured. Safe{Wallet} connects through the Safe connector
+ * when the app runs as a Safe App (see lib/wallet/safeApp.ts) and through WalletConnect otherwise.
  */
 export function getWagmiConfig(opts: WalletOptions = {}) {
   const inBrowser = typeof window !== 'undefined'
@@ -30,6 +31,8 @@ export function getWagmiConfig(opts: WalletOptions = {}) {
       safe({
         allowedDomains: [/^https:\/\/app\.safe\.global$/, /\.safe\.global$/],
         shimDisconnect: true,
+        // The connector asks the host for the Safe info on first use; wagmi defaults to 10 ms, too tight for postMessage.
+        unstable_getInfoTimeout: 1_000,
       }) as unknown as ReturnType<typeof injected>,
     )
   }

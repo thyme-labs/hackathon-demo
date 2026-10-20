@@ -33,12 +33,21 @@ interface FileEntry {
 }
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+/** Amazon Bedrock accepts images up to 3.75 MB; the server refuses larger ones, so say so before uploading. */
+const MAX_IMAGE_BYTES = Math.floor(3.75 * 1024 * 1024)
+const ACCEPT = '.pdf,.png,.jpg,.jpeg,.txt,application/pdf,image/png,image/jpeg,text/plain'
+const ACCEPTED_MIMES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'text/plain'])
+const ACCEPTED_EXTENSIONS = /\.(pdf|png|jpe?g|txt)$/i
+const IMAGE_MIMES = new Set(['image/png', 'image/jpeg'])
+const IMAGE_EXTENSIONS = /\.(png|jpe?g)$/i
 
 function validate(file: File): string | null {
-  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-  if (!isPdf) return 'only .pdf files are accepted'
+  const accepted = ACCEPTED_MIMES.has(file.type) || ACCEPTED_EXTENSIONS.test(file.name)
+  if (!accepted) return 'only .pdf, .png, .jpg and .txt files are accepted'
   if (file.size === 0) return 'the file is empty'
   if (file.size > MAX_UPLOAD_BYTES) return `larger than 10 MB (${(file.size / 1024 / 1024).toFixed(1)} MB)`
+  const isImage = IMAGE_MIMES.has(file.type) || IMAGE_EXTENSIONS.test(file.name)
+  if (isImage && file.size > MAX_IMAGE_BYTES) return `images are limited to 3.75 MB by Amazon Bedrock (${(file.size / 1024 / 1024).toFixed(1)} MB)`
   return null
 }
 
@@ -70,7 +79,7 @@ function uploadWithProgress(file: File, onProgress: (pct: number) => void): Prom
 const formatSize = (bytes: number): string => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`)
 
 /**
- * "New invoice" / "Upload": drag-and-drop zone for one or more PDFs (10 MB each), a file picker, a per-file progress
+ * "New invoice" / "Upload": drag-and-drop zone for one or more invoice files (PDF, PNG, JPEG or TXT; 10 MB each), a file picker, a per-file progress
  * list, and a second tab with the demo invoices. After the uploads finish the first new invoice is selected.
  */
 export function UploadDialog({ open, onOpenChange, defaultTab = 'upload' }: UploadDialogProps) {
@@ -166,13 +175,13 @@ export function UploadDialog({ open, onOpenChange, defaultTab = 'upload' }: Uplo
       <DialogContent className="max-w-lg bg-popover">
         <DialogHeader>
           <DialogTitle>New invoice</DialogTitle>
-          <DialogDescription>Drop contractor invoices as PDF. The agent reads each one, runs the checks and pays in EURC when every rule is green.</DialogDescription>
+          <DialogDescription>Drop contractor invoices as PDF, PNG, JPEG or plain text. The agent reads each one, runs the checks and pays in EURC when every rule is green.</DialogDescription>
         </DialogHeader>
         <Tabs value={tab} onValueChange={handleTabChange}>
           <TabsList className="bg-raised">
             <TabsTrigger value="upload">
               <Upload aria-hidden />
-              Upload PDFs
+              Upload files
             </TabsTrigger>
             <TabsTrigger value="demo">
               <FlaskConical aria-hidden />
@@ -189,12 +198,12 @@ export function UploadDialog({ open, onOpenChange, defaultTab = 'upload' }: Uplo
                 'grid place-items-center gap-2 rounded-xl border border-dashed px-6 py-10 text-center transition-colors',
                 dragging ? 'border-sage bg-sage/10' : 'border-hairline bg-surface',
               )}
-              aria-label="Drop PDF invoices here"
+              aria-label="Drop invoice files here"
             >
               <Upload aria-hidden className={cn('size-6', dragging ? 'text-sage' : 'text-dim')} strokeWidth={1.5} />
-              <div className="text-sm">{dragging ? 'Release to upload' : 'Drag & drop PDF invoices here'}</div>
-              <div className="text-xs text-dim">.pdf only · up to 10 MB each · several at once</div>
-              <Input ref={inputRef} type="file" accept=".pdf,application/pdf" multiple className="hidden" onChange={handleChange} aria-label="Invoice PDFs" />
+              <div className="text-sm">{dragging ? 'Release to upload' : 'Drag & drop invoices here'}</div>
+              <div className="text-xs text-dim">.pdf, .png, .jpg, .txt · up to 10 MB each · several at once</div>
+              <Input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={handleChange} aria-label="Invoice files" />
               <Button type="button" variant="secondary" size="sm" onClick={handlePick} disabled={busy} className="mt-2">
                 <FileText aria-hidden />
                 Choose files

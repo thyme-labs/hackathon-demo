@@ -27,6 +27,8 @@ const toBedrockContent = (block: LlmContent): ContentBlock => {
       return { text: block.text }
     case 'document':
       return { document: { format: 'pdf', name: DOCUMENT_NAME, source: { bytes: block.bytes } } }
+    case 'image':
+      return { image: { format: block.format, source: { bytes: block.bytes } } }
     case 'tool_use':
       return { toolUse: { toolUseId: block.id, name: block.name, input: block.input as DocumentType } }
     case 'tool_result':

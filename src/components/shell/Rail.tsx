@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { StatusDot } from '@/components/ui-kit/StatusDot'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { SessionChip } from '@/components/wallet/SessionChip'
 import { WalletChip } from '@/components/wallet/WalletChip'
 import { Logo } from './Logo'
 
@@ -50,7 +51,7 @@ function RailLink({ item }: { item: RailItem }) {
   )
 }
 
-/** Fixed 76px icon rail: logo, primary nav, then settings + wallet + network dot at the bottom. */
+/** Fixed 76px icon rail: logo, primary nav, then settings + network dot + signed-in tenant + wallet at the bottom. */
 export function Rail({ className }: { className?: string }) {
   return (
     <aside
@@ -70,6 +71,7 @@ export function Rail({ className }: { className?: string }) {
       <div className="mt-auto grid justify-items-center gap-5">
         <RailLink item={{ to: '/settings', label: 'Settings', icon: Settings }} />
         <StatusDot tone="ok" label="Sepolia" />
+        <SessionChip />
         <WalletChip />
       </div>
     </aside>

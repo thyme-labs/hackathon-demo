@@ -1,6 +1,8 @@
 // Deterministic provider so the whole app works with no keys and no network.
 // extract_invoice: reads the JSON the demo generator stored in the PDF Subject
 // metadata (demo/make-invoices.ts). Unknown PDFs yield a low-confidence stub.
+// PNG/JPEG/TXT uploads: the demo invoice with the same file stem in demo/payees.json
+// (invoices[]), else a demo payee named in the text, else the low-confidence stub.
 // write_decision / assess_footprint: templated from demo/payees.json.
 import { PDFDocument } from 'pdf-lib'
 import demoPayees from '../../../../demo/payees.json'
@@ -24,9 +26,17 @@ export interface DemoPayee {
   footprint: { exists: boolean; matches_country: boolean; fraud_reports: boolean; summary: string }
 }
 
+interface DemoInvoiceEntry {
+  file: string
+  number: string
+  payee_id: string
+  currency?: string
+  gross?: number
+}
+
 // `payees` are the registered beneficiaries; `unregistered_payees` only appear on scenario invoices
 // (sanctioned wallet/name, high-risk countries, IBAN-only). Both have a scripted public footprint.
-const payees = demoPayees as unknown as { payees: DemoPayee[]; unregistered_payees?: DemoPayee[] }
+const payees = demoPayees as unknown as { payees: DemoPayee[]; unregistered_payees?: DemoPayee[]; invoices?: DemoInvoiceEntry[] }
 const corpus = (): DemoPayee[] => [...payees.payees, ...(payees.unregistered_payees ?? [])]
 
 const MOCK_MODEL_IDS = { extract: 'mock/extract', reason: 'mock/reason' } as const
@@ -61,9 +71,70 @@ const stubExtraction = (): Record<string, unknown> => ({
   confidence: 0.1,
 })
 
+/** File stem without directory and extension: "x/INV-0412-anna.png" -> "inv-0412-anna". */
+const fileStem = (name: string): string => {
+  const base = name.split(/[\\/]/).pop() ?? ''
+  const dot = base.lastIndexOf('.')
+  return (dot >= 0 ? base.slice(0, dot) : base).toLowerCase()
+}
+
+/** The extraction the demo generator would have put in the PDF Subject, rebuilt from payees.json. */
+const demoExtraction = (payee: DemoPayee, entry: DemoInvoiceEntry | null, confidence: number): Record<string, unknown> => ({
+  payee: {
+    name: payee.printed_name,
+    type: payee.type,
+    address: payee.address,
+    country: payee.country,
+    tax_id: payee.tax_id,
+    lei: payee.lei,
+    email: payee.email,
+    website: payee.website,
+  },
+  invoice: {
+    number: entry?.number ?? 'UNKNOWN',
+    issue_date: null,
+    due_date: null,
+    currency: entry?.currency ?? payee.currency ?? 'EUR',
+    net: entry?.gross ?? 0,
+    vat: 0,
+    gross: entry?.gross ?? 0,
+    line_items: [],
+  },
+  payment: { wallet: payee.wallet, chain: null, iban: null, bic: null, token: null },
+  notes: null,
+  suspicious_text: [],
+  confidence,
+})
+
+/** Non-PDF uploads: demo invoice with the same file stem (INV-0412-anna.png -> invoices/INV-0412-anna.pdf). */
+const extractByFileName = (sourceName: string | undefined): Record<string, unknown> | null => {
+  if (!sourceName) return null
+  const stem = fileStem(sourceName)
+  const entry = (payees.invoices ?? []).find((i) => fileStem(i.file) === stem)
+  const payee = entry ? corpus().find((p) => p.id === entry.payee_id) : undefined
+  return entry && payee ? demoExtraction(payee, entry, 0.9) : null
+}
+
+/** TXT uploads: a demo payee named on its own line ("Payee: Anna Kovalenko"), plus the invoice number and total if printed. */
+const extractFromText = (request: ConverseRequest): Record<string, unknown> | null => {
+  const section = /<untrusted_invoice_text>([\s\S]*?)<\/untrusted_invoice_text>/i.exec(lastUserText(request))?.[1]
+  if (!section) return null
+  for (const line of section.split('\n')) {
+    const candidate = line.replace(/^[^:]{0,40}:\s*/, '').trim()
+    const payee = candidate ? findDemoPayeeByName(candidate) : undefined
+    if (!payee) continue
+    const number = /\b(INV-\d+)\b/i.exec(section)?.[1] ?? null
+    const total = /(?:total|amount due|gross)[^\d\n]{0,20}(\d+(?:[.,]\d{1,2})?)/i.exec(section)?.[1]
+    const gross = total ? Number(total.replace(',', '.')) : 0
+    const entry: DemoInvoiceEntry | null = number ? { file: '', number, payee_id: payee.id, gross } : null
+    return demoExtraction(payee, entry, 0.6)
+  }
+  return null
+}
+
 const mockExtract = async (request: ConverseRequest): Promise<Record<string, unknown>> => {
   const doc = request.messages.flatMap((m) => m.content).find((c) => c.type === 'document')
-  if (!doc || doc.type !== 'document') return stubExtraction()
+  if (!doc || doc.type !== 'document') return extractByFileName(request.sourceName) ?? extractFromText(request) ?? stubExtraction()
   const subject = await readPdfSubject(doc.bytes)
   if (!subject) return stubExtraction()
   try {

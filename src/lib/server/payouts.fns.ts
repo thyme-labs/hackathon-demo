@@ -1,7 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
+import { tenantMiddleware } from './tenantMiddleware'
 import type { PayoutActionResult, PayoutListItem } from './dto'
 
-export const listPayouts = createServerFn({ method: 'GET' }).handler(async (): Promise<PayoutListItem[]> => {
+export const listPayouts = createServerFn({ method: 'GET' }).middleware([tenantMiddleware]).handler(async (): Promise<PayoutListItem[]> => {
   const { payouts, invoices, beneficiaries } = await import('../store/repos')
   const { isPayoutStuck } = await import('../payments/runner')
   const inv = new Map(invoices.list({ limit: 1000 }).map((i) => [i.id, i]))
@@ -24,7 +25,7 @@ export const listPayouts = createServerFn({ method: 'GET' }).handler(async (): P
  * Retry a failed / reverted / stuck payout: Thyme is re-triggered with a NEW Idempotency-Key suffix (next
  * attempt). A row Thyme still reports as running is left alone. Idempotent: a second click reports the in-flight row.
  */
-export const retryPayout = createServerFn({ method: 'POST' })
+export const retryPayout = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { payoutId: string }) => input)
   .handler(async ({ data }): Promise<PayoutActionResult> => {
     const { retryPayout: run } = await import('../payments/runner')
@@ -32,7 +33,7 @@ export const retryPayout = createServerFn({ method: 'POST' })
   })
 
 /** Re-read the Thyme execution recorded on the payout and settle the row when Thyme has a terminal answer. */
-export const checkPayoutStatus = createServerFn({ method: 'POST' })
+export const checkPayoutStatus = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { payoutId: string }) => input)
   .handler(async ({ data }): Promise<PayoutActionResult> => {
     const { reconcilePayout } = await import('../payments/runner')
@@ -40,7 +41,7 @@ export const checkPayoutStatus = createServerFn({ method: 'POST' })
   })
 
 /** Mark a stuck pending / submitted payout as failed so the invoice can be re-run or retried. Idempotent. */
-export const discardPayout = createServerFn({ method: 'POST' })
+export const discardPayout = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { payoutId: string }) => input)
   .handler(async ({ data }): Promise<PayoutActionResult> => {
     const { discardPayout: run } = await import('../payments/runner')

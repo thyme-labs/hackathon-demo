@@ -194,6 +194,8 @@ export interface PrepareProfileResult {
   scopeRules: AllowlistRuleView[]
   setupDataHash: string
   scope: ScopeSummary
+  /** Set when Thyme already had a profile for this Safe and the app adopted it instead of preparing a new one. */
+  adopted?: { profileStatus: 'active' | 'pending'; message: string }
 }
 
 export interface ConfirmSetupResult {
@@ -331,6 +333,8 @@ export interface EnvStatusItem {
 }
 
 export interface SettingsView {
+  /** Tenant of the session (lower-case owner address or anon:<id>). */
+  tenant: string
   safeAddress: string | null
   executor: PaymentExecutorName
   provider: 'bedrock' | 'anthropic' | 'mock'

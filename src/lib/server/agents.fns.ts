@@ -1,7 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
+import { tenantMiddleware } from './tenantMiddleware'
 import type { AgentView, ExecutableResult } from './dto'
 
-export const listAgents = createServerFn({ method: 'GET', strict: false }).handler(async (): Promise<AgentView[]> => {
+export const listAgents = createServerFn({ method: 'GET', strict: false }).middleware([tenantMiddleware]).handler(async (): Promise<AgentView[]> => {
   const { ensureBooted } = await import('./boot')
   ensureBooted()
   const { agents, audit, invoices, beneficiaries, payouts } = await import('../store/repos')
@@ -75,7 +76,7 @@ export interface ToggleAgentResult {
   thyme: { applied: boolean; message: string } | null
 }
 
-export const toggleAgent = createServerFn({ method: 'POST' })
+export const toggleAgent = createServerFn({ method: 'POST' }).middleware([tenantMiddleware])
   .validator((input: { id: string }) => input)
   .handler(async ({ data }): Promise<ToggleAgentResult> => {
     const { agents, appendAudit } = await import('../store/repos')
@@ -90,7 +91,7 @@ export const toggleAgent = createServerFn({ method: 'POST' })
   })
 
 /** "Re-sync executable": re-read the executable status from Thyme; throws a readable error (code, requestId) on failure. */
-export const refreshThymeExecutable = createServerFn({ method: 'POST' }).handler(async (): Promise<ExecutableResult> => {
+export const refreshThymeExecutable = createServerFn({ method: 'POST' }).middleware([tenantMiddleware]).handler(async (): Promise<ExecutableResult> => {
   const { resyncExecutable } = await import('./thymeOnboarding')
   return resyncExecutable()
 })
@@ -104,7 +105,7 @@ export interface RunPaymentAgentResult {
 }
 
 /** "Run payment agent now": one pass of runPaymentsOnce (respects the pause switch and the lock). Safe to click twice. */
-export const runPaymentAgentNow = createServerFn({ method: 'POST' }).handler(async (): Promise<RunPaymentAgentResult> => {
+export const runPaymentAgentNow = createServerFn({ method: 'POST' }).middleware([tenantMiddleware]).handler(async (): Promise<RunPaymentAgentResult> => {
   const { ensureBooted } = await import('./boot')
   ensureBooted()
   const { agents, payouts } = await import('../store/repos')

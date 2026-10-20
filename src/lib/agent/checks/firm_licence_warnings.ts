@@ -35,8 +35,8 @@ const query = async (key: string, filters: Filter[]): Promise<{ rows: MrRecord[]
     signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) throw new Error(`Mostly Right HTTP ${res.status}`)
-  const body = (await res.json()) as { rows?: MrRecord[]; data?: MrRecord[]; version_id?: string; version?: string }
-  return { rows: body.rows ?? body.data ?? [], version: body.version_id ?? body.version ?? null }
+  const body = (await res.json()) as { rows?: MrRecord[]; data?: MrRecord[]; version_id?: string; version?: string; table?: { version_id?: string } }
+  return { rows: body.rows ?? body.data ?? [], version: body.table?.version_id ?? body.version_id ?? body.version ?? null }
 }
 
 const domainOf = (website: string | null | undefined): string | null => {
@@ -84,7 +84,9 @@ export const run = async (ctx: CheckContext) => {
   const filterSets: Filter[][] = []
   if (lei) filterSets.push([{ column: 'lei', operator: 'eq', value: lei }])
   if (domain) filterSets.push([{ column: 'website_domain', operator: 'eq', value: domain }])
-  filterSets.push([{ column: 'name', operator: 'eq', value: name }])
+  // The query API has no case-insensitive operator; registers mix title case and upper case.
+  const nameVariants = Array.from(new Set([name, name.toUpperCase()]))
+  for (const variant of nameVariants) filterSets.push([{ column: 'name', operator: 'contains', value: variant }])
   try {
     const rows: MrRecord[] = []
     let version: string | null = null

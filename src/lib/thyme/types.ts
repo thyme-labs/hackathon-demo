@@ -549,6 +549,8 @@ export const THYME_SETTINGS_KEYS = {
   lastError: 'thymeLastError',
   safeAddress: 'safeAddress',
   ownerAddress: 'ownerAddress',
+  /** Per-tenant shared secret the Flow task presents as X-Thyme-Token (replaces the env THYME_PULL_TOKEN). */
+  pullToken: 'thymePullToken',
 } as const
 
 /** Settings keys the onboarding owns (everything above except the Safe and owner addresses). */

@@ -2,11 +2,12 @@
 // -> score -> status -> explanation -> payout enqueue when approved.
 // The LLM is untrusted: the recipient wallet always comes from the beneficiary registry.
 import { readFileSync } from 'node:fs'
+import { basename } from 'node:path'
 import { parseUnits } from 'viem'
 import { CHECKS, type CheckContext, type LlmCallRecord, type MatchedBy } from './checks'
 import { agentEnv } from './env'
 import { explainDecision } from './explain'
-import { ExtractedInvoice, extractInvoice } from './extract'
+import { ExtractedInvoice, extractInvoice, invoiceFormatFromName } from './extract'
 import { czkLeg } from './fx'
 import { listVersions } from './lists'
 import { matchBeneficiary } from './match'
@@ -62,7 +63,9 @@ const loadExtraction = async (
   if (!invoice.file_path) throw new Error('invoice has no file_path and no stored extraction')
   deps.onProgress?.({ type: 'extracting', invoiceId: invoice.id })
   const bytes = new Uint8Array(readFileSync(invoice.file_path))
-  const outcome = await extractInvoice(bytes, getLlmProvider())
+  // Format follows the stored extension (upload.ts writes <id>.<ext>); rows from before non-PDF uploads are PDFs.
+  const format = invoiceFormatFromName(invoice.file_path) ?? 'pdf'
+  const outcome = await extractInvoice({ format, bytes, name: basename(invoice.file_path) }, getLlmProvider())
   llmCalls.push({ purpose: 'extract_invoice', modelId: outcome.modelId, costUsd: outcome.costUsd, latencyMs: outcome.latencyMs })
   deps.onProgress?.({ type: 'extracted', invoiceId: invoice.id, confidence: outcome.invoice.confidence, modelId: outcome.modelId })
   deps.store.appendAudit({

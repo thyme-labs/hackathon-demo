@@ -1,9 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
+import { tenantMiddleware } from './tenantMiddleware'
 import type { ActivityItem, DashboardView } from './dto'
 
 const BALANCE_TIMEOUT_MS = 6_000
 
-export const getDashboard = createServerFn({ method: 'GET' }).handler(async (): Promise<DashboardView> => {
+export const getDashboard = createServerFn({ method: 'GET' }).middleware([tenantMiddleware]).handler(async (): Promise<DashboardView> => {
   const { ensureBooted } = await import('./boot')
   ensureBooted()
   const { agents, dashboardCounts, beneficiaries, payouts, invoices, audit, settings } = await import('../store/repos')
