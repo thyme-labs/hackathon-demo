@@ -208,7 +208,7 @@ export function InvoicesPage({ initial, selectedId }: InvoicesPageProps) {
           <UploadButton />
           <UploadButton label="Demo invoices" icon="flask" variant="ghost" tab="demo" />
         </div>
-        <nav className="mt-5 grid gap-0.5">
+        <nav data-tour="invoices-queue" className="mt-5 grid gap-0.5">
           {invoices.length === 0 ? <div className="rounded-lg bg-surface p-4 text-xs text-dim">No invoices yet. Upload a PDF or pick a demo invoice.</div> : null}
           {invoices.map((inv) => (
             <Link

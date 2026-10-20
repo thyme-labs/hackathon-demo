@@ -194,7 +194,7 @@ export function SettingsPage({ initial }: { initial: SettingsView }) {
       </Section>
 
       <Section title="Auto-pay">
-        <div className="grid gap-4 rounded-xl bg-surface p-6 md:grid-cols-[1fr_auto]">
+        <div data-tour="settings-autopay" className="grid gap-4 rounded-xl bg-surface p-6 md:grid-cols-[1fr_auto]">
           <form onSubmit={handleThresholdSubmit} className="grid gap-3">
             <Field label="Auto-pay threshold (score 0–100 an invoice needs to be paid without your approval)">
               <div className="flex gap-2">

@@ -17,6 +17,7 @@ export function PayoutsPage({ initial }: { initial: PayoutListItem[] }) {
   const { data } = useQuery({ queryKey: ['payouts'], queryFn: () => listPayouts(), initialData: initial, refetchInterval: 5_000 })
   const rows = data ?? initial
   const total = rows.filter((r) => r.status === 'confirmed').reduce((s, r) => s + r.amount_eur, 0)
+  const firstConfirmedId = rows.find((r) => r.status === 'confirmed')?.id ?? null
 
   async function invalidate() {
     await queryClient.invalidateQueries({ queryKey: ['payouts'] })
@@ -67,7 +68,7 @@ export function PayoutsPage({ initial }: { initial: PayoutListItem[] }) {
   return (
     <>
       <PageHeader title="Payouts" eyebrow={`${rows.filter((r) => r.status === 'confirmed').length} confirmed · ${formatEur(total)} sent`} />
-      <div className="mt-8 rounded-xl bg-surface">
+      <div data-tour="payouts-table" className="mt-8 rounded-xl bg-surface">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -135,7 +136,7 @@ export function PayoutsPage({ initial }: { initial: PayoutListItem[] }) {
                     <div className="flex flex-nowrap justify-end gap-1">
                       {p.status === 'confirmed' ? (
                         <Button asChild variant="ghost" size="xs" className="text-dim">
-                          <a href={`/api/reports/remittance/${p.id}`} target="_blank" rel="noreferrer noopener">
+                          <a href={`/api/reports/remittance/${p.id}`} target="_blank" rel="noreferrer noopener" data-tour={p.id === firstConfirmedId ? 'remittance' : undefined}>
                             <FileText aria-hidden />
                             Advice
                           </a>

@@ -1,0 +1,696 @@
+{
+  "number": "INV-0401",
+  "file": "INV-0401-marko.pdf",
+  "payee_id": "marko-petrovic",
+  "status": "paid",
+  "score": 100,
+  "decision_text": "All checks passed (score 100). Payout released to the wallet on file. (AI-generated, mock/reason)",
+  "invoice": {
+    "issue_date": "2026-10-06",
+    "due_date": "2026-10-20",
+    "currency": "EUR",
+    "amount": 2.5,
+    "amount_eur": 2.5,
+    "fx_rate": 1,
+    "fx_source": "identity",
+    "fx_at": "2026-10-20T09:28:01.285Z",
+    "payee_name": "Marko Petrovic",
+    "payee_wallet": "0x28361e0a19c18010b5c35904405a9452c43dd39c"
+  },
+  "extracted": {
+    "payee": {
+      "name": "Marko Petrovic",
+      "type": "person",
+      "address": "7 Primer Blvd, Novi Sad, Serbia",
+      "country": "RS",
+      "tax_id": "RS-SYNTH-000000005",
+      "lei": null,
+      "email": "marko.petrovic@example.com",
+      "website": null
+    },
+    "invoice": {
+      "number": "INV-0401",
+      "issue_date": "2026-10-06",
+      "due_date": "2026-10-20",
+      "currency": "EUR",
+      "net": 2.5,
+      "vat": 0,
+      "gross": 2.5,
+      "line_items": [
+        {
+          "description": "DevOps support, September 2026",
+          "quantity": 1,
+          "unit_price": 2.5,
+          "total": 2.5
+        }
+      ]
+    },
+    "payment": {
+      "wallet": "0x28361e0a19c18010b5c35904405a9452c43dd39c",
+      "chain": "Ethereum Sepolia",
+      "iban": null,
+      "bic": null,
+      "token": "EURC"
+    },
+    "notes": "VAT reverse charge: services supplied to a Czech customer, Art. 44 and 196 VAT Directive.",
+    "suspicious_text": [],
+    "confidence": 0.96
+  },
+  "checklist": {
+    "entries": [
+      {
+        "id": "known_beneficiary",
+        "label": "Known beneficiary",
+        "enforcement": "agent",
+        "weight": 10,
+        "status": "pass",
+        "evidence": "Marko Petrović (person, RS) matched by tax_id; active, paid €0.00 to date, trust 88/100.",
+        "source": "beneficiary registry",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "matched": true,
+          "matchedBy": "tax_id",
+          "status": "active",
+          "beneficiaryId": "8c0d52ee-1783-4276-a6b0-9a8aed8468c8"
+        }
+      },
+      {
+        "id": "wallet_matches_file",
+        "label": "Wallet matches file",
+        "enforcement": "agent",
+        "weight": 15,
+        "status": "pass",
+        "evidence": "Printed wallet 0x2836…d39c is Marko Petrović's primary approved wallet (1 approved wallet on file).",
+        "source": "beneficiary registry (approved wallets) vs. extracted invoice",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "printed": "0x28361e0a19c18010b5c35904405a9452c43dd39c",
+          "onFile": "0x28361e0a19c18010b5c35904405a9452c43dd39c",
+          "approved": [
+            "0x28361e0a19c18010b5c35904405a9452c43dd39c"
+          ],
+          "mismatch": false,
+          "paidTo": "0x28361e0a19c18010b5c35904405a9452c43dd39c",
+          "primary": true,
+          "label": "primary",
+          "hasProof": true
+        }
+      },
+      {
+        "id": "payee_detail_change",
+        "label": "Payee details stable",
+        "enforcement": "agent",
+        "weight": 6,
+        "status": "pass",
+        "evidence": "Wallet 0x2836…d39c unchanged since registration 2026-09-14 (2 audit events); limit €900.00/30 d unchanged.",
+        "source": "audit_log for Marko Petrović: 2 events since 2026-09-14",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "events": 2,
+          "registered_at": "2026-09-14T09:27:58.790Z",
+          "wallet_changes": [],
+          "limit_raises_7d": [],
+          "first_payout": true,
+          "cooling_cap_eur": 450,
+          "amount_eur": 2.5,
+          "overrides_7d": 0
+        }
+      },
+      {
+        "id": "sanctions_person_entity",
+        "label": "Sanctions: person / entity",
+        "enforcement": "agent",
+        "weight": 12,
+        "status": "pass",
+        "evidence": "\"Marko Petrović\" and \"Marko Petrovic\" (person) not found on the EU consolidated list (6234 subjects), OFAC SDN (19457 entries) or the CZ national list.",
+        "source": "EU consolidated list 2026-10-15 (cache); OFAC SDN 2026-10-19 (cache); CZ national list 2026-07-24 (manual extract, 0 entries)",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "screened": [
+            "Marko Petrović",
+            "Marko Petrovic"
+          ],
+          "type": "person",
+          "type_source": "registry"
+        }
+      },
+      {
+        "id": "pep_screening",
+        "label": "PEP screening",
+        "enforcement": "agent",
+        "weight": 6,
+        "status": "pass",
+        "evidence": "\"Marko Petrović\" has no Wikidata entry with a public office and is not on the wd_oligarchs list. \"Marko Petrovic\" has no Wikidata entry with a public office and is not on the wd_oligarchs list.",
+        "source": "Wikidata SPARQL (P39 positions, P582 end dates) at 2026-10-20T09:28:00.317Z; OpenSanctions wd_oligarchs 2026-10-19 (cache, 170 names; CC-BY-NC, demo use)",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "screened": [
+            "Marko Petrović",
+            "Marko Petrovic"
+          ],
+          "country": "RS",
+          "cutoff": "2025-10-20",
+          "wikidata": [],
+          "oligarch": {
+            "checked": 170,
+            "hits": []
+          },
+          "ms": 626
+        }
+      },
+      {
+        "id": "sanctions_wallet",
+        "label": "Sanctions: wallet",
+        "enforcement": "agent",
+        "weight": 12,
+        "status": "pass",
+        "evidence": "0x2836…d39c (on file) not on the OFAC SDN digital-currency list or in EU list remarks.",
+        "source": "OFAC SDN 2026-10-19 (cache, 87 ETH addresses); EU consolidated list remarks 2026-10-15",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "screened": [
+            {
+              "role": "on file",
+              "addr": "0x28361e0a19c18010b5c35904405a9452c43dd39c"
+            }
+          ]
+        }
+      },
+      {
+        "id": "firm_licence_warnings",
+        "label": "Firm licence & warnings",
+        "enforcement": "agent",
+        "weight": 5,
+        "status": "skip",
+        "evidence": "Natural person (registry): the firm dataset carries licences, warnings and EU entity sanctions only.",
+        "source": "Mostly Right EU financial firm licences and regulator warnings (https://mostlyright.md/datasets/eu-financial-firm-licences-and-regulator-warnings)",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "payee_type": "person",
+          "payee_type_source": "registry"
+        }
+      },
+      {
+        "id": "country_risk",
+        "label": "Country risk",
+        "enforcement": "agent",
+        "weight": 8,
+        "status": "pass",
+        "evidence": "RS is not on the EU high-risk third-country list, the FATF grey or black list, or an EU comprehensive sanctions regime.",
+        "source": "EU comprehensive sanctions regimes as of 2026-10-15; FATF call for action as of 2026-06-19; EU high-risk third countries as of 2026-01-29; FATF increased monitoring as of 2026-06-19",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "code": "RS",
+          "hits": []
+        }
+      },
+      {
+        "id": "public_footprint",
+        "label": "Public footprint",
+        "enforcement": "agent",
+        "weight": 4,
+        "status": "pass",
+        "evidence": "Open-source contributions and a Novi Sad meetup listing match; nothing adverse. (0 results, model mock/reason, AI-generated)",
+        "source": "mock corpus (demo/payees.json)",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "exists": true,
+          "matches_country": true,
+          "fraud_reports": false,
+          "summary": "Open-source contributions and a Novi Sad meetup listing match; nothing adverse.",
+          "confidence": 0.8,
+          "results": [],
+          "modelId": "mock/reason"
+        }
+      },
+      {
+        "id": "invoice_integrity",
+        "label": "Invoice integrity",
+        "enforcement": "agent",
+        "weight": 10,
+        "status": "pass",
+        "evidence": "No duplicate of INV-0401; arithmetic consistent; dates plausible; no instruction-like text; no payment history yet.",
+        "source": "invoice store + extractor",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "fails": [],
+          "warns": [],
+          "notes": [
+            "no payment history yet"
+          ],
+          "number": "INV-0401",
+          "gross": 2.5,
+          "currency": "EUR",
+          "self_asserted": 0,
+          "lookalike_name": false
+        }
+      },
+      {
+        "id": "pdf_forensics",
+        "label": "PDF forensics",
+        "enforcement": "agent",
+        "weight": 6,
+        "status": "pass",
+        "evidence": "17 text operations, all visible; no active content; single revision; one wallet in the text layer.",
+        "source": "PDF object/content-stream scan (pdf-lib), no model; file def6c66b-ecce-4218-8d9d-9c5cbfefb67e.pdf, 2739 B, producer Thyme Payroll demo generator (pdf-lib)",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "pages": 1,
+          "text_ops": 17,
+          "unreadable_ops": 0,
+          "undecodable_streams": 0,
+          "hidden_ops": 0,
+          "hidden": [],
+          "ocr_layer": false,
+          "ocr_overlap": 0,
+          "active_keys": [],
+          "passive_keys": [],
+          "eof_count": 1,
+          "wallets": [
+            "0x28361e0a19c18010b5c35904405a9452c43dd39c"
+          ],
+          "producer": "Thyme Payroll demo generator (pdf-lib)",
+          "creator": "SYNTHETIC TEST DOCUMENT - no real person, company, tax ID or bank account. Thyme Payroll demo, FinTechers Hackathon 2026."
+        }
+      },
+      {
+        "id": "fx_rate",
+        "label": "FX rate",
+        "enforcement": "agent",
+        "weight": 5,
+        "status": "pass",
+        "evidence": "Invoice in EUR: €2.50 = 2.50 EURC. CNB 1 EUR = 24.340 CZK valid for 2026-10-19 (preceding business day, Accounting Act §24d(3)).",
+        "source": "identity @ 2026-10-20T09:28:01.285Z; CNB daily fixing 2026-10-19",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "currency": "EUR",
+          "gross": 2.5,
+          "rate": 1,
+          "source": "identity",
+          "at": "2026-10-20T09:28:01.285Z",
+          "tier": "live",
+          "amountEur": 2.5,
+          "cnb": {
+            "currencyCode": "EUR",
+            "czkPerUnit": 24.34,
+            "validFor": "2026-10-19",
+            "requestedDate": "2026-10-20",
+            "source": "https://api.cnb.cz/cnbapi/exrates/daily?date=2026-10-20&lang=EN"
+          }
+        }
+      },
+      {
+        "id": "issuer_backing",
+        "label": "Issuer backing (MiCA EMT)",
+        "enforcement": "agent",
+        "weight": 5,
+        "status": "pass",
+        "evidence": "Circle Internet Financial Europe SAS (LEI 969500OYUDADGZKCR583) is in the ESMA EMT register: Electronic money institution, ACPR FR, authorised 2024-07-01, EURC DTI 13XTMPZT3. Fully backed: attested €393.3m reserves vs €390.5m in circulation at 2026-08-31 = 1.007 (50 days old); live supply €483.9m (ethereum €323.6m, base €50.2m, avalanche €5.1m, solana €105.0m), +23.9% vs attested circulation.",
+        "source": "ESMA interim register of issuers of e-money tokens (MiCA Art. 109) (row updated 2025-12-24); EURC Reserve Report, Report Dates 2026-08-11 and 2026-08-31 (figures taken as of 2026-08-31); extracted by the team from the public PDF on 2026-10-19 (https://6778953.fs1.hubspotusercontent-na1.net/hubfs/6778953/EURC%20Attestations/2026%20EURC_Examination%20Report%20August%2026.pdf); token supply via public RPC at 2026-10-20T09:28:00.317Z",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "issuer": "969500OYUDADGZKCR583",
+          "dti": "13XTMPZT3",
+          "readings": [
+            {
+              "chain": "ethereum",
+              "supply": 323578448.732394,
+              "rpc": "public"
+            },
+            {
+              "chain": "base",
+              "supply": 50184119.151019,
+              "rpc": "public"
+            },
+            {
+              "chain": "avalanche",
+              "supply": 5140337.021566,
+              "rpc": "public"
+            },
+            {
+              "chain": "solana",
+              "supply": 105019204.526126,
+              "rpc": "public"
+            }
+          ],
+          "live_supply": 483922109.4311049,
+          "testnet_note": "Ethereum Sepolia EURC 0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4 is a Circle testnet contract with no DTI; the demo maps it to the mainnet token identity above and says so.",
+          "attested_ratio": 1.007043209903208,
+          "live_coverage": 0.8127029130004882,
+          "supply_drift": 0.23912833803587352,
+          "attestation": {
+            "reserves": 393284908,
+            "circulation": 390534293,
+            "report_date": "2026-08-31",
+            "age_days": 50,
+            "max_age_days": 62
+          }
+        }
+      },
+      {
+        "id": "eurc_blacklist",
+        "label": "EURC issuer blacklist",
+        "enforcement": "agent",
+        "weight": 8,
+        "status": "pass",
+        "evidence": "0x2836…d39C (on file) is not blacklisted; EURC not paused; blacklister/owner/masterMinter unchanged since 2026-10-19.",
+        "source": "Circle EURC Sepolia 0x0821…94D4 isBlacklisted/paused/admin via ethereum-sepolia-rpc.publicnode.com at 2026-10-20T09:28:00.317Z, block 11954398; admin snapshot config/issuers.json 2026-10-19",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "screened": [
+            {
+              "role": "on file",
+              "addr": "0x28361e0A19c18010b5c35904405a9452c43Dd39C",
+              "blacklisted": false
+            }
+          ],
+          "paused": false,
+          "admin": {
+            "blacklister": "0xF9D66FAa2F5d99C0D1E5b643d142Bf4cb8F5e94C",
+            "owner": "0xfD628758334De0E69E669E2eA61e5FA6bE6d3061",
+            "master_minter": "0x2e3467bbD995a32b85DCA51c58Bd23f5a96C2Ff2"
+          },
+          "admin_changed": false,
+          "block": 11954398
+        }
+      },
+      {
+        "id": "safe_roles_health",
+        "label": "Safe & Roles rail",
+        "enforcement": "chain",
+        "weight": 6,
+        "status": "skip",
+        "evidence": "Thyme rail not onboarded on a Safe yet (simulated payouts); nothing to verify on chain.",
+        "source": "Safe isModuleEnabled / Roles avatar,target / EURC balanceOf on Sepolia",
+        "at": "2026-10-20T09:28:00.317Z"
+      },
+      {
+        "id": "budget",
+        "label": "Within monthly limit",
+        "enforcement": "agent",
+        "weight": 10,
+        "status": "pass",
+        "evidence": "€2.50 within limit: €900.00 of €900.00 left after €0.00 in the last 30 days.",
+        "source": "beneficiary limit + payouts (30-day rolling); enforced again by the payment agent before Thyme is called",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "amountEur": 2.5,
+          "limit": 900,
+          "spent30d": 0,
+          "remainingOffChain": 900,
+          "onChain": null
+        }
+      },
+      {
+        "id": "payment_pattern",
+        "label": "Payment pattern",
+        "enforcement": "agent",
+        "weight": 6,
+        "status": "pass",
+        "evidence": "1 payout(s) in the 24 h billing window (€2.50), 1 in 7 d (€2.50); 1 invoice(s) under €1,000.00 totalling €2.50; no velocity or splitting pattern.",
+        "source": "payout ledger + invoice store, 7-day window anchored on the billing day; thresholds from the ČNB synthetic AML dataset 2Q2026 (s3 CNB/transactions.csv)",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "amount_eur": 2.5,
+          "threshold_eur": 1000,
+          "billed_on": "2026-10-06",
+          "n24": 1,
+          "sum24": 2.5,
+          "n7": 1,
+          "sum7": 2.5,
+          "k": 1,
+          "split_sum": 2.5,
+          "velocity": false,
+          "splitting": false,
+          "round_amount": false,
+          "counted": []
+        }
+      },
+      {
+        "id": "ownership_proof",
+        "label": "Wallet ownership proof",
+        "enforcement": "agent",
+        "weight": 4,
+        "status": "pass",
+        "evidence": "Contractor signed control of 0x2836…d39c (signed 2026-10-19, chain 11155111).",
+        "source": "EIP-712 signature on file (verified with viem, EIP-1271 aware when a client is injected)",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "hasProof": true,
+          "valid": true,
+          "ageDays": 1,
+          "signedAt": "2026-10-19T08:00:00Z"
+        }
+      },
+      {
+        "id": "travel_rule_readiness",
+        "label": "Travel Rule record",
+        "enforcement": "agent",
+        "weight": 4,
+        "status": "pass",
+        "evidence": "€2.50 is below the EUR 1,000 self-hosted threshold; originator record (Thyme Payroll demo company, CZ) and payee record (Marko Petrović, RS, address) attached to the remittance anyway.",
+        "source": "Reg. (EU) 2023/1113 Art. 14(5)/16(2); config/originator.json; config/rails.json travel_rule (threshold EUR 1,000)",
+        "at": "2026-10-20T09:28:00.317Z",
+        "data": {
+          "amount_eur": 2.5,
+          "threshold_eur": 1000,
+          "above": false,
+          "originator": {
+            "legal_name": "Thyme Payroll demo company",
+            "address": "Na Prikope 1, 110 00 Praha 1",
+            "country": "CZ"
+          },
+          "beneficiary": {
+            "name": "Marko Petrović",
+            "country": "RS",
+            "address": "7 Primer Blvd, Novi Sad, Serbia",
+            "wallet": "0x28361e0a19c18010b5c35904405a9452c43dd39c",
+            "tax_id": "RS-SYNTH-000000005"
+          },
+          "missing": [],
+          "ownership_proof_signed_at": "2026-10-19T08:00:00Z"
+        }
+      },
+      {
+        "id": "transfer_preflight",
+        "label": "Transfer dry-run",
+        "enforcement": "chain",
+        "weight": 8,
+        "status": "skip",
+        "evidence": "No Safe on file (simulated rail); nothing to dry-run.",
+        "source": "eth_call/estimateGas on Sepolia; Roles v2.1.1 execTransactionWithRole dry-run",
+        "at": "2026-10-20T09:28:00.317Z"
+      }
+    ],
+    "score": 100,
+    "started_at": "2026-10-20T09:27:58.805Z",
+    "finished_at": "2026-10-20T09:28:01.498Z",
+    "list_versions": {
+      "eu_consolidated": "2026-10-15 (cache, 6234 subjects)",
+      "ofac_sdn": "2026-10-19 (cache, 19457 entries, 87 ETH addresses)",
+      "cz_national": "2026-07-24 (manual extract, 0 entries)",
+      "wd_oligarchs": "2026-10-19 (cache, 170 names)"
+    },
+    "llm": {
+      "provider": "mock",
+      "calls": 3,
+      "cost_usd": 0,
+      "models": [
+        "mock/extract",
+        "mock/reason"
+      ]
+    },
+    "scoring": {
+      "model": "tiered-v1",
+      "score": 100,
+      "raw_score": 100,
+      "penalty": 0,
+      "total": 131,
+      "cap": null,
+      "caps": [],
+      "breakdown": [
+        {
+          "id": "known_beneficiary",
+          "label": "Known beneficiary",
+          "tier": "high",
+          "weight": 10,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "wallet_matches_file",
+          "label": "Wallet matches file",
+          "tier": "critical",
+          "weight": 15,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "payee_detail_change",
+          "label": "Payee details stable",
+          "tier": "high",
+          "weight": 6,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "sanctions_person_entity",
+          "label": "Sanctions: person / entity",
+          "tier": "critical",
+          "weight": 12,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "pep_screening",
+          "label": "PEP screening",
+          "tier": "medium",
+          "weight": 6,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "sanctions_wallet",
+          "label": "Sanctions: wallet",
+          "tier": "critical",
+          "weight": 12,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "firm_licence_warnings",
+          "label": "Firm licence & warnings",
+          "tier": "medium",
+          "weight": 5,
+          "status": "skip",
+          "penalty": 0,
+          "note": "skipped: not counted (no penalty, no credit)"
+        },
+        {
+          "id": "country_risk",
+          "label": "Country risk",
+          "tier": "high",
+          "weight": 8,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "public_footprint",
+          "label": "Public footprint",
+          "tier": "low",
+          "weight": 4,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "invoice_integrity",
+          "label": "Invoice integrity",
+          "tier": "high",
+          "weight": 10,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "pdf_forensics",
+          "label": "PDF forensics",
+          "tier": "high",
+          "weight": 6,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "fx_rate",
+          "label": "FX rate",
+          "tier": "medium",
+          "weight": 5,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "issuer_backing",
+          "label": "Issuer backing (MiCA EMT)",
+          "tier": "medium",
+          "weight": 5,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "eurc_blacklist",
+          "label": "EURC issuer blacklist",
+          "tier": "medium",
+          "weight": 8,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "safe_roles_health",
+          "label": "Safe & Roles rail",
+          "tier": "medium",
+          "weight": 6,
+          "status": "skip",
+          "penalty": 0,
+          "note": "skipped: not counted (no penalty, no credit)"
+        },
+        {
+          "id": "budget",
+          "label": "Within monthly limit",
+          "tier": "high",
+          "weight": 10,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "payment_pattern",
+          "label": "Payment pattern",
+          "tier": "high",
+          "weight": 6,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "ownership_proof",
+          "label": "Wallet ownership proof",
+          "tier": "medium",
+          "weight": 4,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "travel_rule_readiness",
+          "label": "Travel Rule record",
+          "tier": "medium",
+          "weight": 4,
+          "status": "pass",
+          "penalty": 0,
+          "note": "pass: no penalty"
+        },
+        {
+          "id": "transfer_preflight",
+          "label": "Transfer dry-run",
+          "tier": "medium",
+          "weight": 8,
+          "status": "skip",
+          "penalty": 0,
+          "note": "skipped: not counted (no penalty, no credit)"
+        }
+      ],
+      "explanation": "All 17 counted checks passed; 3 checks skipped."
+    }
+  }
+}

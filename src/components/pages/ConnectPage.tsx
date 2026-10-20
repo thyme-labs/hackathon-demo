@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouter } from '@tanstack/react-router'
 import { useModal } from 'connectkit'
+import { Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useAccount, useSignMessage } from 'wagmi'
@@ -8,6 +9,8 @@ import { Logo } from '@/components/shell/Logo'
 import { StatusDot } from '@/components/ui-kit/StatusDot'
 import { Button } from '@/components/ui/button'
 import { continueWithoutWallet, fetchSession, signInWithWallet } from '@/lib/auth/siwe'
+import { tourStore } from '@/lib/demo/tourStore'
+import { startJuryDemo } from '@/lib/server/demo.fns'
 import { shortAddress } from '@/lib/wallet/wagmi'
 
 export const SESSION_QUERY_KEY = ['session'] as const
@@ -21,9 +24,10 @@ export function ConnectPage() {
   const { signMessageAsync } = useSignMessage()
   const { setOpen } = useModal()
   const navigate = useNavigate()
+  const router = useRouter()
   const queryClient = useQueryClient()
   const session = useQuery({ queryKey: SESSION_QUERY_KEY, queryFn: fetchSession, staleTime: 0 })
-  const [busy, setBusy] = useState<'sign' | 'anon' | null>(null)
+  const [busy, setBusy] = useState<'sign' | 'anon' | 'jury' | null>(null)
 
   const signedInHere = Boolean(session.data && address && session.data.address?.toLowerCase() === address.toLowerCase())
 
@@ -67,6 +71,23 @@ export function ConnectPage() {
     }
   }
 
+  /** Demo tenant with seeded data and the guided walkthrough; real tenants never see the tour. */
+  async function handleJuryDemo() {
+    setBusy('jury')
+    try {
+      const result = await startJuryDemo()
+      queryClient.setQueryData(SESSION_QUERY_KEY, result.session)
+      await queryClient.invalidateQueries()
+      tourStore.start(0)
+      await router.invalidate()
+      void navigate({ to: '/dashboard', search: { tour: 1 } })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not start the jury demo')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const showSignIn = isConnected && address && !signedInHere
 
   return (
@@ -93,6 +114,10 @@ export function ConnectPage() {
             </Button>
             <Button size="lg" variant="secondary" className="min-w-36" onClick={handleSafe}>
               Safe{'{Wallet}'}
+            </Button>
+            <Button size="lg" variant="secondary" className="min-w-36" onClick={handleJuryDemo} disabled={busy !== null} title="Open a demo workspace with sample data and a guided walkthrough">
+              <Sparkles aria-hidden />
+              {busy === 'jury' ? 'Preparing…' : 'Jury demo'}
             </Button>
           </div>
         )}

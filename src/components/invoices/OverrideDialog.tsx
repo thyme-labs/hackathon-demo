@@ -91,7 +91,7 @@ export function OverrideDialog({ open, onOpenChange, detail }: OverrideDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg bg-popover">
+      <DialogContent data-tour="override-dialog" className="max-w-lg bg-popover">
         <form onSubmit={handleSubmit} className="grid gap-5">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-blocked">

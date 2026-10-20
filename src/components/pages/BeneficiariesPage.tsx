@@ -41,7 +41,7 @@ export function BeneficiariesPage({ initial }: { initial: BeneficiaryListItem[] 
   return (
     <>
       <PageHeader title="Beneficiaries" eyebrow={`${rows.filter((r) => r.status === 'active').length} active · approved wallets and 30-day limit enforced by the agent · EURC via Thyme from the Safe`} />
-      <div className="mt-8 rounded-xl bg-surface">
+      <div data-tour="beneficiaries-table" className="mt-8 rounded-xl bg-surface">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -64,8 +64,8 @@ export function BeneficiariesPage({ initial }: { initial: BeneficiaryListItem[] 
                 </TableCell>
               </TableRow>
             ) : null}
-            {rows.map((b) => (
-              <TableRow key={b.id} className="cursor-pointer" onClick={() => setSelected(b.id)}>
+            {rows.map((b, index) => (
+              <TableRow key={b.id} data-tour={index === 0 ? 'beneficiary-row' : undefined} className="cursor-pointer" onClick={() => setSelected(b.id)}>
                 <TableCell>
                   <div className="font-medium">{b.name}</div>
                   <div className="text-xs text-dim">
@@ -285,7 +285,7 @@ function WalletsSection({ beneficiaryId, beneficiaryName, wallets }: WalletsSect
   const pendingCount = wallets.filter((w) => w.status === 'pending').length
 
   return (
-    <section>
+    <section data-tour="beneficiary-wallets">
       <h3 className="mb-2 flex items-center justify-between text-xs text-dim">
         <span>
           Wallets · {approvedCount} approved{pendingCount > 0 ? ` · ${pendingCount} pending owner approval` : ''}

@@ -534,7 +534,7 @@ export function OnboardingPage({ initial }: { initial: ThymeOnboardingView }) {
       {view.onboarded || view.simulated ? <DoneCard view={view} onForget={handleForget} forgetting={forget.isPending} /> : null}
 
       <Section title="Steps" aside={<span className="text-xs text-dim">resumes at step {stepIndex(activeStep)} after a reload</span>}>
-        <ol className="grid gap-3">
+        <ol data-tour="onboarding-steps" className="grid gap-3">
           {/* 1. Wallet */}
           <Step n={1} title="Connect the Safe owner wallet" done={stepDone.connect} active={activeCard === 'connect'} error={errorFor('connect')}>
             {isConnected && address ? (

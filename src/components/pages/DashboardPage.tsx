@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { getDashboard } from '@/lib/server/dashboard.fns'
 import type { ActivityItem, DashboardView } from '@/lib/server/dto'
 import { sendHeldInvoice } from '@/lib/server/invoices.fns'
-import { CHECKS } from '@/lib/agent/checks'
+import { CHECK_DESCRIPTIONS } from '@/lib/agent/descriptions/checks'
 
 const ICONS: Record<ActivityItem['kind'], typeof ArrowRight> = {
   paid: ArrowRight,
@@ -100,7 +100,7 @@ export function DashboardPage({ initial }: { initial: DashboardView }) {
         {view.balancesError ? <span className="self-center text-xs text-dim">{view.balancesError}</span> : balances ? <span className="self-center text-xs text-dim">block {balances.blockNumber}</span> : null}
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div data-tour="dashboard-total" className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat
           label="Queue"
           value={counts.queued}
@@ -112,7 +112,7 @@ export function DashboardPage({ initial }: { initial: DashboardView }) {
       </div>
 
       <Section title="Agents" aside={<ChipLegend />}>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div data-tour="dashboard-agents" className="grid gap-4 md:grid-cols-2">
           {view.agents.map((agent) => (
             <Link key={agent.id} to="/agents" className="block rounded-xl bg-surface p-5 transition-colors hover:bg-raised/60">
               <div className="flex items-center gap-2.5">
@@ -123,7 +123,7 @@ export function DashboardPage({ initial }: { initial: DashboardView }) {
                 </span>
               </div>
               <div className="mt-1.5 text-xs text-dim capitalize">{agent.kind === 'payment' ? 'Pay' : 'Check'}</div>
-              {agent.kind === 'payment' ? <BudgetBar used={agent.used_eur} limit={agent.limit_eur} className="mt-5" /> : <div className="mt-5 text-xs text-dim">{CHECKS.length} checks per invoice · auto-pay when every rule is green</div>}
+              {agent.kind === 'payment' ? <BudgetBar used={agent.used_eur} limit={agent.limit_eur} className="mt-5" /> : <div className="mt-5 text-xs text-dim">{Object.keys(CHECK_DESCRIPTIONS).length} checks per invoice · auto-pay when every rule is green</div>}
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {agent.chips.map((c) => (
                   <Chip key={c.label} variant={c.variant}>
@@ -149,7 +149,7 @@ export function DashboardPage({ initial }: { initial: DashboardView }) {
 
       <Section title="Activity">
         {view.activity.length === 0 ? <div className="rounded-xl bg-surface p-5 text-xs text-dim">Nothing yet. Upload an invoice.</div> : null}
-        <div className="divide-y divide-hairline">
+        <div data-tour="dashboard-activity" className="divide-y divide-hairline">
           {view.activity.map((item) => {
             const Icon = ICONS[item.kind]
             const red = item.kind === 'blocked' || item.kind === 'rejected' || item.kind === 'overridden'

@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useLoaderData, useNavigate } from '@tanstack/react-router'
 import {
   ArrowRightLeft,
   Bot,
@@ -8,13 +8,16 @@ import {
   PieChart,
   Settings,
   ShieldCheck,
+  Sparkles,
   Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatusDot } from '@/components/ui-kit/StatusDot'
+import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { SessionChip } from '@/components/wallet/SessionChip'
 import { WalletChip } from '@/components/wallet/WalletChip'
+import { tourStore, useTour } from '@/lib/demo/tourStore'
 import { Logo } from './Logo'
 
 interface RailItem {
@@ -51,8 +54,29 @@ function RailLink({ item }: { item: RailItem }) {
   )
 }
 
+/** Demo tenants only: restart the guided walkthrough from the dashboard. */
+function GuideButton() {
+  const navigate = useNavigate()
+  const { active } = useTour()
+  function handleGuide() {
+    tourStore.start(0)
+    void navigate({ to: '/dashboard', search: {} })
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon-lg" onClick={handleGuide} aria-label="Guide" aria-pressed={active} className={cn('text-dim hover:bg-raised hover:text-text', active && 'bg-raised text-sage')}>
+          <Sparkles aria-hidden className="size-5" strokeWidth={1.5} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right">Guide · restart the walkthrough</TooltipContent>
+    </Tooltip>
+  )
+}
+
 /** Fixed 76px icon rail: logo, primary nav, then settings + network dot + signed-in tenant + wallet at the bottom. */
 export function Rail({ className }: { className?: string }) {
+  const { demo } = useLoaderData({ from: '__root__' })
   return (
     <aside
       className={cn(
@@ -69,6 +93,7 @@ export function Rail({ className }: { className?: string }) {
         ))}
       </nav>
       <div className="mt-auto grid justify-items-center gap-5">
+        {demo.mode ? <GuideButton /> : null}
         <RailLink item={{ to: '/settings', label: 'Settings', icon: Settings }} />
         <StatusDot tone="ok" label="Sepolia" />
         <SessionChip />

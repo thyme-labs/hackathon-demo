@@ -1,10 +1,12 @@
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext, useLocation } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import type { ReactNode } from 'react'
+import { Tour } from '@/components/demo/Tour'
 import { Shell } from '@/components/shell/Shell'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { WalletProvider } from '@/components/wallet/WalletProvider'
+import { getDemoState } from '@/lib/server/demo.fns'
 import type { RouterContext } from '@/router'
 import appCss from '@/styles/app.css?url'
 
@@ -16,7 +18,10 @@ const getPublicConfig = createServerFn({ method: 'GET' }).handler(async () => {
 })
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-  loader: () => getPublicConfig(),
+  loader: async () => {
+    const [config, demo] = await Promise.all([getPublicConfig(), getDemoState()])
+    return { ...config, demo }
+  },
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -58,6 +63,7 @@ function RootComponent() {
         <Shell bare={bare}>
           <Outlet />
         </Shell>
+        <Tour demo={config.demo} />
         <Toaster position="bottom-right" />
       </TooltipProvider>
     </WalletProvider>

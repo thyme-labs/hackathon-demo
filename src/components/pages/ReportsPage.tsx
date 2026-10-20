@@ -87,7 +87,7 @@ export function ReportsPage({ data }: { data: ReportsView }) {
           </Sheet>
         }
       >
-        <div className="rounded-xl bg-surface p-6">
+        <div data-tour="reports-comparison" className="rounded-xl bg-surface p-6">
           <div className="text-xl font-medium tracking-tightest">{comparison.headline}</div>
           <div className="mt-1 text-sm text-dim">{comparison.subline}</div>
           <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">

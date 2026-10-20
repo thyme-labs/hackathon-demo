@@ -103,7 +103,7 @@ export function InvestigationLog({ detail, onRegister, onApprove, onSend, onRetr
       {extracted ? <ExtractionCard detail={detail} className={finished ? 'mt-3' : undefined} /> : null}
 
       {checklist.entries.length > 0 ? (
-        <Card className="mt-3">
+        <Card className="mt-3" tour="checks-list">
           <div className="flex items-center justify-between">
             <div className="text-xs text-dim">Checks · by severity</div>
             {beneficiary ? (
@@ -183,8 +183,12 @@ function uploadedName(audit: InvoiceDetail['audit']): string | null {
   }
 }
 
-function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <section className={cn('rounded-xl bg-surface p-5', className)}>{children}</section>
+function Card({ children, className, tour }: { children: React.ReactNode; className?: string; /** data-tour anchor for the guided demo */ tour?: string }) {
+  return (
+    <section data-tour={tour} className={cn('rounded-xl bg-surface p-5', className)}>
+      {children}
+    </section>
+  )
 }
 
 function Row({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
@@ -338,7 +342,7 @@ function DecisionCard({ detail, payoutSeconds, onRegister, onApprove, onSend, on
       </>
     ) : (
       <>
-        <div className="flex gap-2">
+        <div data-tour="approve-buttons" className="flex gap-2">
           <Button variant="secondary" onClick={handleApproveHold} disabled={busy} title="Approve now, release the payout later with Send">
             <Check aria-hidden />
             Approve
@@ -369,7 +373,7 @@ function DecisionCard({ detail, payoutSeconds, onRegister, onApprove, onSend, on
     actions = (
       <>
         {!inFlight ? (
-          <Button variant="outline" className="border-blocked/40 text-blocked hover:bg-blocked/10 hover:text-blocked" onClick={onOverride} disabled={busy} title="Acknowledge every failed check, give a reason, pay the wallet on file">
+          <Button data-tour="send-anyway" variant="outline" className="border-blocked/40 text-blocked hover:bg-blocked/10 hover:text-blocked" onClick={onOverride} disabled={busy} title="Acknowledge every failed check, give a reason, pay the wallet on file">
             <ShieldAlert aria-hidden />
             Send anyway
           </Button>
@@ -467,7 +471,7 @@ function DecisionCard({ detail, payoutSeconds, onRegister, onApprove, onSend, on
   }
 
   return (
-    <Card className={cn('animate-rise', tone === 'blocked' && 'border border-blocked/30')}>
+    <Card className={cn('animate-rise', tone === 'blocked' && 'border border-blocked/30')} tour="decision-card">
       <div className="flex items-start gap-5">
         <ScoreRing value={checklist.score} threshold={autoPay.threshold} failed={failed} />
         <div className="min-w-0 flex-1">

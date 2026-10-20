@@ -54,6 +54,16 @@ Not finished yet:
 - [ ] Demo data reset and the audit log are unauthenticated on the demo URL (single-tenant demo; add auth before any real use).
 - [ ] The agent key custody for Thyme is Thyme's; the app holds no keys. Bedrock credentials on Railway are temporary SSO credentials and expire daily.
 
+## Jury demo
+
+"Jury demo" on the connect page opens an anonymous demo workspace seeded with the five demo contractors, three
+historical (labelled simulated) payouts, INV-0388 waiting for approval and the forged INV-0432 stopped, and starts a
+guided walkthrough of every screen (the sparkle button in the rail restarts it). The seeded investigations are replayed
+from `demo/fixtures/*.json`, recorded once with the mock provider (`scripts/dump-demo-fixtures.ts`), so seeding never
+calls a model; everything the judges do afterwards (upload, approve, send anyway) runs the real pipeline. The tour only
+appears for tenants with `settings.demoMode = '1'`; wallet sessions never see it and demo tenants always pay through
+the labelled simulation.
+
 ## Run it
 
 ```bash
