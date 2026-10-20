@@ -44,7 +44,7 @@ Working on production (Sepolia, Thyme dev): onboarding of a user-owned Safe over
 
 Not finished yet:
 
-- [ ] Per-beneficiary monthly limits are enforced by the agent; putting them on chain as Zodiac Roles allowances on Thyme's Roles proxy (encoders are ready in `src/lib/roles`, fork-tested) needs a Thyme scope-update endpoint that is not built yet.
+- [ ] Per-beneficiary monthly limits are enforced by the agent. Putting them on chain as Zodiac Roles allowances on Thyme's Roles proxy (encoders are ready in `src/lib/roles`, fork-tested) needs a Thyme scope-update endpoint. Out of scope for the hackathon; planned as the next Thyme release.
 - [ ] Thyme webhook with custom args: the uploaded `pay-invoice` release has no extracted arguments schema, so the app triggers the executable with its saved args and the cron run picks up the oldest pending payout; a v2 upload with an inline `defineTask` schema would let the webhook name the invoice.
 - [ ] Public-footprint check (Apify) and firm-licence check (Mostly Right) run only when their keys are configured; otherwise they warn/skip and the invoice waits for approval.
 - [ ] PEP screening uses Wikidata and the OpenSanctions oligarch list only; no commercial PEP data.
