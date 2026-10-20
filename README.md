@@ -18,12 +18,13 @@ A forged invoice (same payee, different wallet) is stopped by the agent; if the 
 
 This repository was created at kickoff. The starting point is the `hackathon-start` tag; everything after it was built during the event, 19–20 October 2026:
 
-- The whole app: TanStack Start UI (dashboard, invoice queue with live investigation log, beneficiaries with trust scores and totals, agents, payouts, reports, settings, onboarding), server functions and API routes, SQLite store.
-- The compliance agent: Bedrock Converse pipeline (Haiku 4.5 extraction with a forced tool, Sonnet 4.5 explanations), deterministic validation, sanctions list fetchers, country-risk tables, FX via Tatum/ECB, ČNB daily rate, EURC issuer/backing check, scoring and auto-pay rules.
+- The whole app: TanStack Start UI (dashboard, invoice queue with live investigation log and severity-sorted checklist, beneficiaries with trust scores, totals and multiple approved wallets, agents, payouts, reports, settings with an editable auto-pay threshold, onboarding), server functions and API routes, SQLite store.
+- Approval flows: Approve (register only) vs Approve & send, hold/release, and a double-confirmation "Send anyway" override for stopped invoices that is written to the audit log; Retry on every onboarding step and payout.
+- The compliance agent: Bedrock Converse pipeline (Haiku 4.5 extraction with a forced tool, Sonnet 4.5 explanations), 20 deterministic checks (sanctions lists, OFAC wallet addresses, firm licences, country risk, PEP via Wikidata, invoice integrity and PDF forensics, FX via Tatum/ECB with the ČNB rate, EURC issuer backing and Circle blacklist state, Safe/Roles health, a transfer pre-flight simulation, payment patterns, Travel Rule readiness, budgets), a tiered scoring model with hard caps for critical failures, and the auto-pay rules.
 - Thyme onboarding over the API: the app asks Thyme to prepare a Roles profile for the user's existing Safe, prompts the owner to sign one transaction in MetaMask, confirms it, creates the executable and its webhook. The user never opens the Thyme console.
 - The Thyme Flow task `thyme/functions/pay-invoice` and the webhook callbacks.
 - Reports: remittance advice, ledger CSV/JSON, audit JSONL, the SWIFT/SEPA comparison with sourced assumptions (`config/rails.json`).
-- Synthetic demo data (`demo/`): five fictional contractors, invoices in EUR/USD/GBP/INR, one forged invoice and one with embedded prompt injection.
+- Synthetic demo data (`demo/`): five fictional contractors and 27 invoice scenarios in EUR/USD/GBP/INR, including forged wallets, prompt injections, duplicates, structuring, sanctions hits, homoglyph names and a new wallet on a known payee (`demo/README.md`).
 - `src/lib/roles`: viem encoders for per-beneficiary Zodiac Roles allowances, verified on a Sepolia fork (`scripts/fork-test.ts`).
 - The pitch site (`pitch/`) and `PLAN.md`.
 
@@ -36,6 +37,22 @@ In the Thyme product itself (closed source, disclosed to the organisers) we adde
 - Data: EU consolidated sanctions list, OFAC SDN, ESMA interim MiCA registers, ČNB exchange rates, Chainlink feeds, the Mostly Right "EU financial firm licences and regulator warnings" dataset, Circle testnet EURC.
 - Models: Anthropic Claude (Haiku 4.5, Sonnet 4.5) on Amazon Bedrock, eu-central-1.
 - AI coding assistants (Claude Code, Codex) were used throughout the build.
+
+## Status and to-do
+
+Working on production (Sepolia, Thyme dev): onboarding of a user-owned Safe over the Thyme API, real Bedrock extraction (Haiku 4.5) and explanations (Sonnet 4.5), 20 checks, EURC payouts executed by Thyme Flow with sponsored gas, remittance advice, ledger, audit log, the SWIFT/SEPA comparison, 27 demo scenarios (`demo/README.md`).
+
+Not finished yet:
+
+- [ ] Per-beneficiary monthly limits are enforced by the agent; putting them on chain as Zodiac Roles allowances on Thyme's Roles proxy (encoders are ready in `src/lib/roles`, fork-tested) needs a Thyme scope-update endpoint that is not built yet.
+- [ ] Thyme webhook with custom args: the uploaded `pay-invoice` release has no extracted arguments schema, so the app triggers the executable with its saved args and the cron run picks up the oldest pending payout; a v2 upload with an inline `defineTask` schema would let the webhook name the invoice.
+- [ ] Public-footprint check (Apify) and firm-licence check (Mostly Right) run only when their keys are configured; otherwise they warn/skip and the invoice waits for approval.
+- [ ] PEP screening uses Wikidata and the OpenSanctions oligarch list only; no commercial PEP data.
+- [ ] Adverse-media search, VIES VAT-id validation, wallet age/counterparty checks (Blockscout) are specified in the roadmap but not implemented.
+- [ ] Multi-owner Safes (threshold > 1) are out of scope: onboarding needs a 1/1 Safe whose owner signs in MetaMask.
+- [ ] The Safe{Wallet} connector works when the app runs as a Safe App; over WalletConnect the domain must be allow-listed in the Reown project.
+- [ ] Demo data reset and the audit log are unauthenticated on the demo URL (single-tenant demo; add auth before any real use).
+- [ ] The agent key custody for Thyme is Thyme's; the app holds no keys. Bedrock credentials on Railway are temporary SSO credentials and expire daily.
 
 ## Run it
 
